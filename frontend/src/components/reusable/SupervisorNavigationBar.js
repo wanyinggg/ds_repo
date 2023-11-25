@@ -1,0 +1,420 @@
+import React, { useState } from "react";
+import {
+  AppBar,
+  Box,
+  Toolbar,
+  IconButton,
+  Typography,
+  Menu,
+  MenuItem,
+  Container,
+  Avatar,
+  Button,
+  Tooltip,
+  ToggleButton,
+  ToggleButtonGroup,
+} from "@mui/material";
+import MenuIcon from "@mui/icons-material/Menu";
+import { ThemeProvider, styled } from "@mui/material/styles";
+import Theme from "./Theme";
+import umLogo from "../image/umlogo.png";
+import backgroundImage from "../image/fsktm.jpg";
+import fsktmLogo from "../image/fsktm-logo.png";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import api from "../axios";
+import NotificationIcon from "./NotificationIcon";
+import Profile from "./Profile";
+import theme from "./Theme";
+
+function SupervisorNavigationBar(props) {
+  const [anchorElNav, setAnchorElNav] = React.useState(null);
+  const [anchorElUser, setAnchorElUser] = React.useState(null);
+  const [userRole, setUserRole] = React.useState("supervisor");
+
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const storedUser = JSON.parse(
+    sessionStorage.getItem("user") || localStorage.getItem("user")
+  );
+  const isProgramCoordinator = storedUser.groups.includes(4);
+
+  const pages = [
+    { label: "All Projects", path: "/supervisor" },
+    { label: "My Projects", path: "/supervisorproject" },
+    { label: "Student Applications", path: "/supervisorapplication" },
+    { label: "Evaluation", path: "/supervisorevaluation" },
+    { label: "Previous Project List", path: "/supervisorpreviousproject" },
+  ];
+
+  const settings = [
+    "Switch to Panel",
+    ...(isProgramCoordinator ? ["Switch to Program Coordinator"] : []),
+    "Profile",
+    "Reset Password",
+    "Logout",
+  ];
+
+  const handleLogout = async () => {
+    try {
+      await api.post("/logout/");
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+      sessionStorage.removeItem("token");
+      sessionStorage.removeItem("user");
+      sessionStorage.removeItem("selectedOption");
+      api.defaults.headers.common["Authorization"] = "";
+      navigate("/");
+    } catch (err) {
+      console.error("Failed to log out", err.response.data);
+    } finally {
+      handleCloseUserMenu();
+    }
+  };
+
+  const handleOpenNavMenu = (event) => {
+    setAnchorElNav(event.currentTarget);
+  };
+  const handleOpenUserMenu = (event) => {
+    setAnchorElUser(event.currentTarget);
+  };
+
+  const handleCloseNavMenu = () => {
+    setAnchorElNav(null);
+  };
+
+  const handleCloseUserMenu = () => {
+    setAnchorElUser(null);
+  };
+
+  const handleRoleChange = (event, newRole) => {
+    setUserRole(newRole);
+    if (newRole === "panel") {
+      navigate("/panelpresentation");
+    } else if (newRole === "programcoordinator") {
+      navigate(`/programcoordinator`);
+    }
+  };
+
+  const Logo = styled("img")({
+    height: "40px",
+    marginRight: "8px",
+  });
+
+  const showToggleButtonGroup = location.pathname === "/supervisor";
+
+  const isProjectDetail = location.pathname.startsWith("/projectdetail");
+  const isSupervisorProjectTemplate = location.pathname.startsWith(
+    "/supervisorprojecttemplate"
+  );
+  const isProposalDetail = location.pathname.startsWith(
+    "/supervisorproposaldetail"
+  );
+  const isResetPassword = location.pathname.startsWith("/resetcurrentpassword");
+  const isProfile = location.pathname.startsWith("/profile");
+  const isProposalEvaluation = location.pathname.startsWith("/proposal_evaluation");
+  const isReportEvaluation = location.pathname.startsWith("/report_evaluation");
+  const isConductEvaluation = location.pathname.startsWith("/conduct_evaluation");
+
+  const pageTitle =
+    pages.find((page) => page.path === location.pathname)?.label ||
+    (isProjectDetail
+      ? "Project Details"
+      : isSupervisorProjectTemplate
+      ? "Add Project"
+      : isProposalDetail
+      ? "Proposal Details"
+      : isResetPassword
+      ? "Reset Password"
+      : isProfile
+      ? "Profile"
+      : isProposalEvaluation
+      ? "Proposal (10%)"
+      : isReportEvaluation
+      ? "Report (40%)"
+      : isConductEvaluation
+      ? "Supervisee Conduct (10%)"
+      : "");
+
+  const shouldShowPageName = location.pathname !== "/supervisor";
+
+  const handleNavigation = (path) => {
+    navigate(path);
+    sessionStorage.removeItem("selectedOption");
+  };
+
+  return (
+    <ThemeProvider theme={Theme}>
+      <AppBar
+        position="static"
+        sx={{
+          backgroundImage: `linear-gradient(to right, rgba(182, 178, 239, 0.95), rgba(38, 96, 167, 0.95)), url(${backgroundImage})`,
+          backgroundSize: "cover",
+          backgroundRepeat: "no-repeat",
+          backgroundPosition: "bottom",
+          minHeight: { xs: "17rem", sm: "15rem" }, 
+          maxHeight: { xs: "17rem", sm: "15rem" },
+          display: "flex",
+        }}
+      >
+        <Box
+          sx={{
+            position: "absolute",
+            top: "10.5rem", 
+            left: "0",
+            padding: "0.5rem",
+            marginLeft: "1.875rem", 
+          }}
+        >
+          {showToggleButtonGroup && (
+            <ToggleButtonGroup
+              value={userRole}
+              exclusive
+              onChange={handleRoleChange}
+              aria-label="user role"
+              sx={{
+                backgroundColor: "rgba(255, 255, 255, 0.2)",
+                borderRadius: "4px",
+                border: "none",
+                ".MuiToggleButtonGroup-grouped": {
+                  margin: "4px",
+                  border: "0",
+                  "&.Mui-disabled": {
+                    border: "0",
+                  },
+                },
+              }}
+            >
+              <ToggleButton
+                value="supervisor"
+                disabled={userRole === "supervisor"}
+                color="primary"
+                variant="outlined"
+                style={{ textTransform: "none" }}
+                sx={{
+                  "&.Mui-selected": {
+                    backgroundColor: "white",
+                    color: "#3f51b5",
+                    boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
+                  },
+                }}
+              >
+                Supervisor
+              </ToggleButton>
+              <ToggleButton
+                value="panel"
+                disabled={userRole === "panel"}
+                color="primary"
+                variant="outlined"
+                style={{ textTransform: "none" }}
+                sx={{
+                  "&.Mui-selected": {
+                    backgroundColor: "white",
+                    color: "#3f51b5",
+                    boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
+                  },
+                }}
+              >
+                Panel
+              </ToggleButton>
+              {isProgramCoordinator && (
+                <ToggleButton
+                  value="programcoordinator"
+                  disabled={userRole === "programcoordinator"}
+                  color="primary"
+                  variant="outlined"
+                  style={{ textTransform: "none" }}
+                  sx={{
+                    "&.Mui-selected": {
+                      backgroundColor: "white",
+                      color: "#3f51b5",
+                      boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
+                    },
+                  }}
+                >
+                  Program Coordinator
+                </ToggleButton>
+              )}
+            </ToggleButtonGroup>
+          )}
+        </Box>
+        {shouldShowPageName && (
+          <Box
+          sx={{
+            position: "absolute",
+            top: "10.5rem", 
+            left: "0",
+            padding: "0.5rem",
+            marginLeft: "1.875rem", 
+          }}
+          >
+            <Typography
+              variant="h5"
+              sx={{
+                color: "white",
+                letterSpacing: "0.1em",
+                margin: "0",
+              }}
+            >
+              {pageTitle}
+            </Typography>
+          </Box>
+        )}
+        <Container maxWidth="l">
+          <Toolbar disableGutters>
+            <Logo
+              img
+              src={umLogo}
+              sx={{
+                display: { xs: "none", md: "flex" },
+              }}
+            />
+            <Box sx={{ flexGrow: 1, display: { xs: "flex", md: "none" } }}>
+              <IconButton
+                size="large"
+                aria-label="account of current user"
+                aria-controls="menu-appbar"
+                aria-haspopup="true"
+                onClick={handleOpenNavMenu}
+                color="inherit"
+              >
+                <MenuIcon />
+              </IconButton>
+              <Menu
+                id="menu-appbar"
+                anchorEl={anchorElNav}
+                anchorOrigin={{
+                  vertical: "bottom",
+                  horizontal: "left",
+                }}
+                keepMounted
+                transformOrigin={{
+                  vertical: "top",
+                  horizontal: "left",
+                }}
+                open={Boolean(anchorElNav)}
+                onClose={handleCloseNavMenu}
+                sx={{
+                  display: { xs: "block", md: "none" },
+                }}
+              >
+                {pages.map((page) => (
+                  <MenuItem key={page.label} onClick={handleCloseNavMenu}>
+                    <Link to={page.path} style={{ textDecoration: "none" }}>
+                      <Typography>{page.label}</Typography>
+                    </Link>
+                  </MenuItem>
+                ))}
+              </Menu>
+            </Box>
+            <Logo
+              img
+              src={umLogo}
+              sx={{
+                display: { xs: "flex", md: "none" },
+                position: "absolute",
+                left: 50,
+              }}
+            />
+
+            <Box sx={{ flexGrow: 1, display: { xs: "none", md: "flex" } }}>
+              {pages.map((page) => (
+                <Button
+                  key={page.label}
+                  onClick={() => {
+                    handleCloseNavMenu();
+                    handleNavigation(page.path);
+                  }}
+                  sx={{
+                    my: 2,
+                    mx: 1,
+                    color: "white",
+                    display: "block",
+                    textTransform: "none",
+                    fontWeight: "bold",
+                    fontSize: "1rem",
+                    padding: "10px 15px",
+                    borderRadius: "4px",
+                    backgroundColor:
+                      location.pathname === page.path
+                        ? "rgba(255, 255, 255, 0.2)"
+                        : "transparent",
+                    "&:hover": {
+                      backgroundColor: "rgba(255, 255, 255, 0.1)",
+                      textDecoration: "none",
+                    },
+                    "&:focus": {
+                      boxShadow: "0 0 0 2px rgba(255, 255, 255, 0.5)",
+                    },
+                  }}
+                >
+                  {page.label}
+                </Button>
+              ))}
+            </Box>
+
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                [Theme.breakpoints.down("sm")]: {
+                  justifyContent: "space-between",
+                },
+              }}
+            >
+              <NotificationIcon />
+              <Tooltip title="Open settings">
+                <IconButton onClick={handleOpenUserMenu} sx={{ p: 0 }}>
+                  <Avatar>
+                    {storedUser && storedUser.full_name.charAt(0).toUpperCase()}
+                  </Avatar>
+                </IconButton>
+              </Tooltip>
+              <Menu
+                sx={{ mt: "45px" }}
+                id="menu-appbar"
+                anchorEl={anchorElUser}
+                anchorOrigin={{
+                  vertical: "top",
+                  horizontal: "right",
+                }}
+                keepMounted
+                transformOrigin={{
+                  vertical: "top",
+                  horizontal: "right",
+                }}
+                open={Boolean(anchorElUser)}
+                onClose={handleCloseUserMenu}
+              >
+                {settings.map((setting) => (
+                  <MenuItem
+                    key={setting}
+                    onClick={() => {
+                      if (setting === "Profile") {
+                        navigate(`/profile?role=${userRole}`);
+                      } else if (setting === "Logout") {
+                        handleLogout();
+                      } else if (setting === "Reset Password") {
+                        navigate(`/resetcurrentpassword?role=${userRole}`);
+                      } else if (setting === "Switch to Panel") {
+                        handleRoleChange(null, "panel");
+                      } else if (setting === "Switch to Program Coordinator") {
+                        handleRoleChange(null, "programcoordinator");
+                      } else {
+                        handleCloseUserMenu();
+                      }
+                    }}
+                  >
+                    <Typography textAlign="center">{setting}</Typography>
+                  </MenuItem>
+                ))}
+              </Menu>
+            </Box>
+          </Toolbar>
+        </Container>
+      </AppBar>
+    </ThemeProvider>
+  );
+}
+
+export default SupervisorNavigationBar;
