@@ -158,19 +158,22 @@ export default function Dashboard() {
     api
       .get("/users/")
       .then((response) => {
-        let usersInSelectedGroup = response.data.filter((user) =>
-          user.groups.includes(groupID)
+        // Filter to include only users from the specified group and who are active
+        let filteredUsers = response.data.filter(user => 
+          user.groups.includes(groupID) && user.is_active === true
         );
+
         if (groupID === 1) {
-          setStudents(usersInSelectedGroup);
+          setStudents(filteredUsers); // groupID 1 is for students
         } else if (groupID === 2) {
-          setLecturers(usersInSelectedGroup);
+          setLecturers(filteredUsers); // groupID 2 is for lecturers
         }
       })
       .catch((error) => {
         console.log(error);
       });
-  };
+};
+
 
   const fetchGrades = () => {
     api
@@ -261,18 +264,24 @@ export default function Dashboard() {
     },
   };
 
-  const studentsWithProjects = projects
-    .map((project) => project.assigned_to_id)
-    .flat();
-  const uniqueStudentsWithProjects = [...new Set(studentsWithProjects)];
+  const activeStudents = students.filter(student => student.is_active === 1);
 
-  const unassignedStudents = students.filter(
-    (student) => !uniqueStudentsWithProjects.includes(student.id)
-  );
-  const data = [
-    { name: "With Projects", Students: uniqueStudentsWithProjects.length },
-    { name: "Without Projects", Students: unassignedStudents.length },
-  ];
+  // Processing the projects to determine which students are assigned
+  const studentsWithProjectsIds = projects
+  .map(project => project.assigned_to_id)
+  .flat();
+const uniqueStudentsWithProjectsIds = [...new Set(studentsWithProjectsIds)];
+
+// Filtering out active students who are unassigned
+const unassignedStudents = students.filter(
+  student => !uniqueStudentsWithProjectsIds.includes(student.id)
+);
+
+// Preparing the data for the pie chart
+const data = [
+  { name: "With Projects", Students: uniqueStudentsWithProjectsIds.length },
+  { name: "Without Projects", Students: unassignedStudents.length },
+];
 
   const maxDataValue = Math.max(
     ...lecturerData.map((item) => item.student_count)
@@ -435,12 +444,16 @@ export default function Dashboard() {
                             : "↑"
                           : "↕"}
                       </TableCell>
+                      <TableCell >
+                        <strong>Email</strong>
+                      </TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
                     {lecturers.map((lecturer) => (
                       <TableRow key={lecturer.id}>
                         <TableCell>{lecturer.full_name}</TableCell>
+                        <TableCell>{lecturer.email}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>

@@ -23,16 +23,13 @@ import {
 import {
   LocalizationProvider,
   DatePicker,
-  TimePicker,
 } from "@mui/x-date-pickers";
-import PickersDay, { pickersDayClasses } from "@mui/lab/PickersDay";
-
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
 import SortIcon from "@mui/icons-material/Sort";
-import CloseIcon from "@mui/icons-material/Close";
 import AddCircleOutlineIcon from "@mui/icons-material/AddCircleOutline";
-import DeleteIcon from "@mui/icons-material/Delete";
+import RemoveCircleOutlineIcon from "@mui/icons-material/RemoveCircleOutline";
 import ScheduleIcon from "@mui/icons-material/Schedule";
+import CloseIcon from "@mui/icons-material/Close";
 import { useEffect, useState } from "react";
 import { createTheme, ThemeProvider, styled } from "@mui/material/styles";
 import { tableCellClasses } from "@mui/material/TableCell";
@@ -59,7 +56,7 @@ const StyledTableCell = styled(TableCell)(({ theme }) => ({
   },
 }));
 
-export default function PanelHome() {
+export default function PanelPresentation() {
   const [projectPanels, setProjectPanels] = useState({});
   const [projects, setProjects] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -68,12 +65,20 @@ export default function PanelHome() {
   const [presentationSchedules, setPresentationSchedules] = useState([]);
   const [availabilityModalOpen, setAvailabilityModalOpen] = useState(false);
   const [filteredProjects, setFilteredProjects] = useState([]);
-  const [alert, setAlert] = useState(null);
   const [alertOpen, setAlertOpen] = React.useState(false);
   const [alertMessage, setAlertMessage] = React.useState("");
   const [alertSeverity, setAlertSeverity] = React.useState("success");
   const [selectedDate, setSelectedDate] = React.useState(new Date());
-  const [availability, setAvailability] = useState({});
+  const [semesterInfo, setSemesterInfo] = useState({});
+  const [week15Dates, setWeek15Dates] = useState([]);
+  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
+  const [selectedTimeSlots, setSelectedTimeSlots] = useState(() => {
+    const savedData = sessionStorage.getItem("selectedTimeSlots");
+    return savedData ? JSON.parse(savedData) : {};
+  });
+  const [currentSelectedDate, setCurrentSelectedDate] = useState(null);
+  const [isRemovalMode, setIsRemovalMode] = useState(false);
+  const [error, setError] = useState("");
   const [deleteAlert, setDeleteAlert] = useState({
     open: false,
     message: "",
@@ -268,6 +273,25 @@ export default function PanelHome() {
   };
 
   useEffect(() => {
+    api
+      .get("semester/")
+      .then((response) => {
+        const allSemesters = response.data;
+        const latestSemester = allSemesters.find((sem) => sem.is_latest);
+
+        if (latestSemester) {
+          setSemesterInfo(latestSemester);
+          const dates = calculateWeek15Dates(latestSemester.end_date);
+          setWeek15Dates(dates);
+        }
+      })
+      .catch((err) => {
+        console.error("Error fetching semester data:", err);
+        setError("Failed to fetch semester data. Please try again.");
+      });
+  }, []);
+
+  useEffect(() => {
     fetchData();
   }, []);
 
@@ -298,13 +322,6 @@ export default function PanelHome() {
     setAlertOpen(false);
   };
 
-  const handleDeleteAlertOpen = (message, severity = "success") => {
-    setDeleteAlert({ open: true, message, severity });
-    setTimeout(() => {
-      setDeleteAlert((prev) => ({ ...prev, open: false }));
-    }, 1500);
-  };
-
   const handleDeleteAlertClose = () => {
     setDeleteAlert((prev) => ({ ...prev, open: false }));
   };
@@ -315,303 +332,262 @@ export default function PanelHome() {
   };
 
   const handleCloseAvailabilityModal = () => {
+    setSelectedTimeSlots({});
     setAvailabilityModalOpen(false);
-  };
-
-  const handleDateChange = (date) => {
-    const utcDate = new Date(
-      Date.UTC(date.getFullYear(), date.getMonth(), date.getDate())
-    );
-    setSelectedDate(utcDate);
-    console.log("Selected UTC date:", utcDate);
-  };
-
-  const handleTimeRangeChange = (date, index, time, isStartTime) => {
-    const times = availability[date] || [];
-    if (isStartTime) {
-      times[index] = { ...times[index], startTime: time };
-    } else {
-      times[index] = { ...times[index], endTime: time };
-    }
-    setAvailability({ ...availability, [date]: times });
-  };
-
-  const addTimeSlot = (date) => {
-    const dateStr = date.toISOString().split("T")[0];
-    const times = availability[dateStr] || [];
-    setAvailability({ ...availability, [dateStr]: [...times, new Date()] });
-  };
-
-  const renderTimeRangePickers = (date) => {
-    const dateStr = date.toISOString().split("T")[0];
-    const times = availability[dateStr] || [];
-    return times.map((timeRange, index) => (
-      <Box key={index} sx={{ display: "flex", gap: 2, mb: 2 }}>
-        <ThemeProvider theme={theme}>
-          <LocalizationProvider dateAdapter={AdapterDateFns}>
-            <TimePicker
-              label={`Start Time ${index + 1}`}
-              value={timeRange.startTime}
-              onChange={(newValue) =>
-                handleTimeRangeChange(dateStr, index, newValue, true)
-              }
-              renderInput={(params) => <TextField {...params} fullWidth />}
-              slotProps={{
-                textField: ({}) => ({
-                  color: "secondary",
-                }),
-                popper: {
-                  sx: {
-                    "& .MuiMenuItem-root": {
-                      "&.Mui-selected": {
-                        backgroundColor: "#8950fc",
-                      },
-                    },
-                    "& .MuiButton-root": {
-                      color: "#8950fc",
-                    },
-                    "& .MuiTouchRipple-root": {
-                      color: "#bb99ff",
-                    },
-                    "& .MuiDialogActions-root .MuiButton-text": {
-                      color: "#8950fc",
-                    },
-                  },
-                },
-                actionBar: {
-                  sx: {
-                    ".MuiButton-root.MuiButton-text.MuiButton-textPrimary": {
-                      color:
-                        "#8950fc !important" /* Using !important to ensure override */,
-                    },
-                  },
-                },
-                layout: {
-                  sx: {
-                    "& .MuiClock-pin": {
-                      backgroundColor: "#8950fc",
-                      "&::after": {
-                        backgroundColor: "#8950fc",
-                      },
-                    },
-                    "& .MuiClockPointer-root": {
-                      backgroundColor: "#8950fc",
-                      "&::after": {
-                        backgroundColor: "#8950fc",
-                      },
-                    },
-                    "& .MuiClockPointer-thumb": {
-                      borderColor: "#8950fc !important",
-                      "&::after": {
-                        borderColor: "#8950fc !important",
-                      },
-                    },
-                  },
-                },
-              }}
-            />
-          </LocalizationProvider>
-          <LocalizationProvider dateAdapter={AdapterDateFns}>
-            <TimePicker
-              label={`End Time ${index + 1}`}
-              value={timeRange.endTime}
-              onChange={(newValue) =>
-                handleTimeRangeChange(dateStr, index, newValue, false)
-              }
-              renderInput={(params) => <TextField {...params} fullWidth />}
-              slotProps={{
-                textField: ({}) => ({
-                  color: "secondary",
-                }),
-                popper: {
-                  sx: {
-                    "& .MuiMenuItem-root": {
-                      "&.Mui-selected": {
-                        backgroundColor: "#8950fc",
-                      },
-                    },
-                    "& .MuiButton-root": {
-                      color: "#8950fc",
-                    },
-                    "& .MuiTouchRipple-root": {
-                      color: "#bb99ff",
-                    },
-                  },
-                },
-                actionBar: {
-                  sx: {
-                    ".MuiButton-root.MuiButton-text.MuiButton-textPrimary": {
-                      color:
-                        "#8950fc !important" /* Using !important to ensure override */,
-                    },
-                  },
-                },
-                layout: {
-                  sx: {
-                    "& .MuiClock-pin": {
-                      backgroundColor: "#8950fc",
-                      "&::after": {
-                        backgroundColor: "#8950fc",
-                      },
-                    },
-                    "& .MuiClockPointer-root": {
-                      backgroundColor: "#8950fc",
-                      "&::after": {
-                        backgroundColor: "#8950fc",
-                      },
-                    },
-                    "& .MuiClockPointer-thumb": {
-                      borderColor: "#8950fc !important",
-                      "&::after": {
-                        borderColor: "#8950fc !important",
-                      },
-                    },
-                  },
-                },
-              }}
-            />
-          </LocalizationProvider>
-          <IconButton
-            aria-label="remove"
-            onClick={() => removeTimeSlot(date, index)}
-            sx={{ color: "red" }}
-          >
-            <DeleteIcon />
-          </IconButton>
-        </ThemeProvider>
-      </Box>
-    ));
-  };
-
-  const formatTime = (date) => {
-    return `${String(date.getHours()).padStart(2, "0")}:${String(
-      date.getMinutes()
-    ).padStart(2, "0")}`;
   };
 
   const handleSaveAvailability = async () => {
-    for (const [date, times] of Object.entries(availability)) {
-      for (const timeSlot of times) {
-        const startTimeFormatted = formatTime(timeSlot.startTime);
-        const endTimeFormatted = formatTime(timeSlot.endTime);
-        const timeslotData = {
-          date: date,
-          start_time: startTimeFormatted,
-          end_time: endTimeFormatted,
+    const savePromises = Object.entries(selectedTimeSlots).map(
+      async ([date, slotIds]) => {
+        const data = {
           panel_id: user?.id,
+          date: date,
+          time_slots: slotIds,
         };
 
-        if (timeSlot.id) {
-          // If the time slot has an ID, it's an existing time slot, so update it
-          try {
-            await api.put(`/time_range/${timeSlot.id}/`, timeslotData);
-            handleAlertOpen("Time slots are successfully updated.");
-          } catch (error) {
-            console.error("Error updating timeslot:", error.response.data);
-          }
-        } else {
-          // If the time slot does not have an ID, it's a new time slot, so create it
-          try {
-            await api.post("/time_range/", timeslotData);
-            handleAlertOpen("Time slots are successfully created.");
-          } catch (error) {
-            console.error("Error creating timeslot:", error.response.data);
-          }
-        }
+        return slotIds.length > 0
+          ? api.post("/time_range/", data)
+          : api.delete(`/time_range/?date=${date}`); // Delete the entry if no slots selected
       }
-    }
+    );
 
-    // After saving, fetch the updated time slots and close the modal
-    await fetchPanelTimeRanges();
-    setAvailabilityModalOpen(false);
+    try {
+      await Promise.all(savePromises);
+      handleAlertOpen(
+        "Time slots availability updated successfully!",
+        "success"
+      );
+      setAvailabilityModalOpen(false);
+    } catch (error) {
+      console.error("Error updating time slots:", error.response.data);
+    }
   };
+
+  useEffect(() => {
+    if (availabilityModalOpen) {
+      fetchPanelTimeRanges().catch((error) => {
+        console.error("Error fetching time ranges:", error);
+        // Optionally, show an error message to the user
+      });
+    } else {
+      // Reset state when modal closes
+      setSelectedTimeSlots({});
+      setCurrentSelectedDate(null);
+    }
+  }, [availabilityModalOpen]);
 
   const fetchPanelTimeRanges = async () => {
     try {
       const response = await api.get("/time_range/");
-      const fetchedTimeRanges = response.data.reduce((acc, timeRange) => {
-        const { date, start_time, end_time } = timeRange;
-        const startTime = new Date(date + "T" + start_time);
-        const endTime = new Date(date + "T" + end_time);
+      let fetchedTimeRanges = {};
 
-        if (!acc[date]) {
-          acc[date] = [];
+      response.data.forEach((timeRange) => {
+        const dateStr = timeRange.date;
+        if (!fetchedTimeRanges[dateStr]) {
+          fetchedTimeRanges[dateStr] = [];
         }
+        fetchedTimeRanges[dateStr] = timeRange.time_slots.map((timeSlot) => {
+          const foundSlot = timeSlots.find(
+            (slot) => slot.label === timeSlotMapping[timeSlot]
+          );
+          return foundSlot ? foundSlot.id : null;
+        });
+      });
 
-        acc[date].push({ startTime, endTime, id: timeRange.id });
-        return acc;
-      }, {});
+      // Merge with unsaved, previously chosen time slots
+      const mergedTimeSlots = { ...selectedTimeSlots };
+      for (const [date, slots] of Object.entries(fetchedTimeRanges)) {
+        if (mergedTimeSlots[date]) {
+          mergedTimeSlots[date] = Array.from(
+            new Set([...mergedTimeSlots[date], ...slots])
+          );
+        } else {
+          mergedTimeSlots[date] = slots;
+        }
+      }
 
-      setAvailability(fetchedTimeRanges);
+      setSelectedTimeSlots(mergedTimeSlots);
     } catch (error) {
       console.error("Error fetching time ranges:", error);
     }
   };
+  const calculateWeek15Dates = (endDate) => {
+    const end = new Date(endDate);
+    const dates = [];
 
-  const removeTimeSlot = async (date, index) => {
-    const dateStr = date.toISOString().split("T")[0];
-    const times = availability[dateStr];
+    // end date is Friday, subtract days to get to Monday
+    for (let i = 4; i >= 0; i--) {
+      let date = new Date(end);
+      date.setDate(date.getDate() - i);
+      dates.push(date);
+    }
 
-    if (!times) return; // If no time slots, nothing to delete
+    return dates;
+  };
 
-    const timeSlotToDelete = times[index];
+  // Function to toggle removal mode
+  const toggleRemovalMode = () => {
+    setIsRemovalMode(!isRemovalMode);
+  };
 
-    if (timeSlotToDelete && timeSlotToDelete.id) {
+  const deleteTimeSlotsForDate = async (dateStr) => {
+    // Check if the date is already stored in the backend
+    const isDateStored = selectedTimeSlots[dateStr] && selectedTimeSlots[dateStr].length > 0;
+  
+    if (isDateStored) {
       try {
-        await api.delete(`/time_range/${timeSlotToDelete.id}/`);
-        console.log(`Time slot ${timeSlotToDelete.id} deleted successfully.`);
-        handleDeleteAlertOpen("Time slot deleted successfully.");
+        await api.delete(`/time_range/?date=${dateStr}`);
+        // Update the state after successful deletion from the backend
+        updateDateDeletionState(dateStr);
+        handleAlertOpen("Time slots deleted successfully!", "success");
       } catch (error) {
-        console.error("Error deleting time slot:", error.response.data);
-        return;
+        console.error(`Error deleting time slots for ${dateStr}:`, error.response.data);
+        handleAlertOpen("Failed to delete time slots.", "error");
+      }
+    } else {
+        updateDateDeletionState(dateStr);
+    
+    }
+  };
+  
+  const updateDateDeletionState = (dateStr) => {
+    setWeek15Dates(week15Dates.filter((date) => date.toISOString().split("T")[0] !== dateStr));
+    setSelectedTimeSlots((prevSlots) => {
+      const newSlots = { ...prevSlots };
+      delete newSlots[dateStr];
+      return newSlots;
+    });
+  };
+
+  const handleDateSelection = (date) => {
+    const dateStr = date.toISOString().split("T")[0];
+    console.log(`Date selected: ${dateStr}, Removal mode: ${isRemovalMode}`);
+
+    if (isRemovalMode) {
+      console.log(`Removing date: ${dateStr}`);
+      setWeek15Dates(
+        week15Dates.filter((d) => d.toISOString().split("T")[0] !== dateStr)
+      );
+      deleteTimeSlotsForDate(dateStr);
+    } else {
+      if (currentSelectedDate !== dateStr) {
+        setSelectedDate(date);
+        setCurrentSelectedDate(dateStr);
+
+        console.log(`Selected Date: ${dateStr}`);
+        console.log("Current Selected Date: ", currentSelectedDate);
+        console.log("Selected Time Slots: ", selectedTimeSlots);
+
+        // Fetch time slots for the new date only if they are not already present
+        if (!selectedTimeSlots[dateStr]) {
+          fetchTimeSlotsForDate(date);
+        }
+      } else {
+        console.log(`Deselecting date: ${dateStr}`);
+        setCurrentSelectedDate(null);
+        setSelectedDate(null);
       }
     }
+  };
 
-    // Remove the time slot from the local state
-    const updatedTimes = [...times.slice(0, index), ...times.slice(index + 1)];
+  // Function to handle opening the date picker modal
+  const handleOpenDatePicker = () => {
+    setIsDatePickerOpen(true);
+  };
 
-    // If there are no more time slots for this date, remove the date as well
-    if (updatedTimes.length === 0) {
-      const newAvailability = { ...availability };
-      delete newAvailability[dateStr]; // Remove the date key entirely if no time slots
-      setAvailability(newAvailability);
-    } else {
-      // Otherwise, just update the time slots for the date
-      setAvailability({ ...availability, [dateStr]: updatedTimes });
+  // Function to handle closing the date picker modal
+  const handleCloseDatePicker = () => {
+    setIsDatePickerOpen(false);
+  };
+
+  // Function to handle adding a new date
+const handleAddDate = () => {
+  const newDateStr = selectedDate.toISOString().split("T")[0];
+  const existingDates = week15Dates.map(date =>
+    date.toISOString().split("T")[0]
+  );
+
+  if (existingDates.includes(newDateStr)) {
+    handleCloseDatePicker();
+    handleAlertOpen("This date is already selected. Please choose another date.", "error");
+  } else {
+    setWeek15Dates([...week15Dates, selectedDate]);
+    handleCloseDatePicker();
+  }
+};
+
+
+  const timeSlots = [
+    { id: "1", label: "9am-11am" },
+    { id: "2", label: "11am-1pm" },
+    { id: "3", label: "2pm-4pm" },
+    { id: "4", label: "4pm-6pm" },
+  ];
+
+  const handleTimeSlotSelection = (timeSlotId) => {
+    const dateStr = currentSelectedDate;
+    setSelectedTimeSlots((prevSlots) => {
+      const slotsForDate = new Set(prevSlots[dateStr] || []);
+      if (slotsForDate.has(timeSlotId)) {
+        slotsForDate.delete(timeSlotId);
+      } else {
+        slotsForDate.add(timeSlotId);
+      }
+      return { ...prevSlots, [dateStr]: Array.from(slotsForDate) };
+    });
+  };
+
+  const timeSlotMapping = {
+    "09:00:00": "9am-11am",
+    "11:00:00": "11am-1pm",
+    "14:00:00": "2pm-4pm",
+    "16:00:00": "4pm-6pm",
+  };
+
+  const fetchTimeSlotsForDate = async (date) => {
+    const dateStr = date.toISOString().split("T")[0];
+    try {
+      const response = await api.get(`/time_range/?date=${dateStr}`);
+      const fetchedTimeSlots = response.data
+        .map((timeRange) =>
+          timeRange.time_slots.map((timeSlot) => {
+            const foundSlot = timeSlots.find(
+              (slot) => slot.label === timeSlotMapping[timeSlot]
+            );
+            return foundSlot ? foundSlot.id : null;
+          })
+        )
+        .flat();
+
+      setSelectedTimeSlots((prevSlots) => ({
+        ...prevSlots,
+        [dateStr]: fetchedTimeSlots,
+      }));
+    } catch (error) {
+      console.error("Error fetching time slots:", error);
     }
   };
 
-  const formatDateWithDay = (dateString) => {
-    const days = [
-      "Sunday",
-      "Monday",
-      "Tuesday",
-      "Wednesday",
-      "Thursday",
-      "Friday",
-      "Saturday",
-    ];
-    const date = new Date(dateString);
-    const dayName = days[date.getDay()];
-    return `${dateString} (${dayName})`;
-  };
-
-  const renderWeekPickerDay = (date, selectedDates, pickersDayProps) => {
-    return (
-      <PickersDay
-        {...pickersDayProps}
-        sx={{
-          [`&&.${pickersDayClasses.selected}`]: {
-            backgroundColor: theme.palette.secondary.main,
-            color: theme.palette.secondary.contrastText,
-            "&:hover": {
-              backgroundColor: theme.palette.secondary.dark,
-            },
-          },
-        }}
-      />
+  useEffect(() => {
+    sessionStorage.setItem(
+      "selectedTimeSlots",
+      JSON.stringify(selectedTimeSlots)
     );
-  };
+  }, [selectedTimeSlots]);
+
+  useEffect(() => {
+    const savedTimeSlots = JSON.parse(
+      sessionStorage.getItem("selectedTimeSlots")
+    );
+    if (savedTimeSlots) {
+      setSelectedTimeSlots(savedTimeSlots);
+    }
+
+    const savedDate = JSON.parse(sessionStorage.getItem("currentSelectedDate"));
+    if (savedDate) {
+      setCurrentSelectedDate(savedDate);
+    }
+  }, []);
 
   return (
     <ThemeProvider theme={Theme}>
@@ -832,76 +808,173 @@ export default function PanelHome() {
             Set Your Availability
           </Typography>
 
-          <Grid container spacing={3}>
-            <Grid item xs={12} md={6}>
-              <LocalizationProvider dateAdapter={AdapterDateFns}>
-                <DatePicker
-                  renderInput={(props) => <TextField {...props} fullWidth />}
-                  label="Select Date"
-                  value={selectedDate}
-                  onChange={handleDateChange}
-                  renderDay={renderWeekPickerDay}
-                  slotProps={{
-                    textField: ({}) => ({
-                      color: "secondary",
-                    }),
-                    day: {
-                      sx: {
-                        "&.MuiPickersDay-root.Mui-selected": {
-                          backgroundColor: "#8950fc",
-                        },
-                      },
-                    },
-                    actionBar: {
-                      sx: {
-                        ".MuiButton-root.MuiButton-text.MuiButton-textPrimary":
-                          {
-                            color:
-                              "#8950fc !important" /* Using !important to ensure override */,
-                          },
-                      },
-                    },
-                  }}
-                />
-              </LocalizationProvider>
+          <Divider />
 
-              <Button
-                startIcon={<AddCircleOutlineIcon />}
-                onClick={() => addTimeSlot(selectedDate)}
-                variant="contained"
-                color="primary"
-                sx={{ marginLeft: "0.1em", marginTop: "0.5em" }}
+          <Grid container spacing={3}>
+            <Box sx={{ margin: "20px", marginTop: "2rem" }}>
+              <Typography variant="h6">Choose the Date:</Typography>
+              <Box
+                sx={{ display: "flex", gap: 2, flexWrap: "wrap", marginTop: 2 }}
               >
-                Add Time Slot
-              </Button>
-            </Grid>
+                {week15Dates.map((date, index) => {
+                  const day = date.toLocaleDateString("en-US", {
+                    weekday: "long",
+                  });
+                  const dateStr = date.toISOString().split("T")[0];
+                  const isSelected = currentSelectedDate === dateStr;
+                  return (
+                    <Button
+                      key={index}
+                      variant={
+                        isRemovalMode
+                          ? "outlined"
+                          : isSelected
+                          ? "contained"
+                          : "outlined"
+                      }
+                      color="primary"
+                      onClick={() => handleDateSelection(date)}
+                      endIcon={
+                        isRemovalMode && <CloseIcon sx={{ color: "red" }} />
+                      }
+                    >
+                      {`${date.toLocaleDateString()} (${day})`}
+                    </Button>
+                  );
+                })}
+              </Box>
+              {/* Calendar Icon and Text for adding new date */}
+              <Box
+                sx={{ display: "flex", alignItems: "center", gap: 1, mt: 2 }}
+              >
+                <Button
+                  variant="text"
+                  color="primary"
+                  onClick={handleOpenDatePicker}
+                  startIcon={<AddCircleOutlineIcon />}
+                >
+                  add date
+                </Button>
+                <Button
+                  variant="text"
+                  color="primary"
+                  onClick={toggleRemovalMode}
+                  startIcon={<RemoveCircleOutlineIcon />}
+                >
+                  {isRemovalMode ? "Done Removal" : "Remove Date"}
+                </Button>
+              </Box>
+
+              {/* Modal for Date Picker */}
+              <Modal open={isDatePickerOpen} onClose={handleCloseDatePicker}>
+                <Box
+                  sx={{
+                    position: "absolute",
+                    top: "50%",
+                    left: "50%",
+                    transform: "translate(-50%, -50%)",
+                    bgcolor: "background.paper",
+                    boxShadow: 24,
+                    p: 4,
+                  }}
+                >
+                  <LocalizationProvider dateAdapter={AdapterDateFns}>
+                    <DatePicker
+                      renderInput={(props) => <TextField {...props} />}
+                      label="Select Date"
+                      value={selectedDate}
+                      onChange={(newValue) => setSelectedDate(newValue)}
+                      slotProps={{
+                        textField: ({}) => ({
+                          color: "secondary",
+                        }),
+                        day: {
+                          sx: {
+                            "&.MuiPickersDay-root.Mui-selected": {
+                              backgroundColor: "#8950fc",
+                            },
+                          },
+                        },
+                        actionBar: {
+                          sx: {
+                            ".MuiButton-root.MuiButton-text.MuiButton-textPrimary":
+                              {
+                                color: "#8950fc !important",
+                              },
+                          },
+                        },
+                      }}
+                    />
+                  </LocalizationProvider>
+                  <Box
+                    sx={{ mt: 2, display: "flex", justifyContent: "flex-end" }}
+                  >
+                    <Button
+                      variant="contained"
+                      color="primary"
+                      onClick={handleAddDate}
+                    >
+                      Add
+                    </Button>
+                  </Box>
+                </Box>
+              </Modal>
+            </Box>
           </Grid>
 
           <Divider sx={{ my: 3 }} />
 
-          <List>
-            {Object.keys(availability)
-              .sort((a, b) => new Date(a) - new Date(b))
-              .map((date, index) => (
-                <ListItem key={index} sx={{ mb: 2, ml: -1 }}>
-                  <Box sx={{ width: "100%" }}>
-                    <Typography variant="subtitle1" sx={{ mb: 1 }}>
-                      Date: {formatDateWithDay(date)}
-                    </Typography>
-                    {renderTimeRangePickers(new Date(date))}
-                  </Box>
-                </ListItem>
-              ))}
-          </List>
+          {currentSelectedDate && (
+            <>
+              <Typography variant="h6" sx={{ mb: 2 }}>
+                Available Time Slots for {selectedDate.toLocaleDateString()}:
+              </Typography>
 
-          <Button
-            onClick={handleSaveAvailability}
-            variant="contained"
-            color="primary"
-            sx={{ mt: 2, mb: 2 }}
+              <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
+                {timeSlots.map((slot) => {
+                  const isSelected = selectedTimeSlots[
+                    currentSelectedDate
+                  ]?.includes(slot.id);
+                  return (
+                    <Button
+                      key={slot.id}
+                      variant={isSelected ? "contained" : "outlined"}
+                      color="primary"
+                      onClick={() => handleTimeSlotSelection(slot.id)}
+                    >
+                      {slot.label}
+                    </Button>
+                  );
+                })}
+              </Box>
+            </>
+          )}
+
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "flex-end", // Aligns button to the right
+              mt: 5,
+              mb: 2,
+              gap: 2,
+            }}
           >
-            Save Availability
-          </Button>
+            <Button
+              onClick={handleCloseAvailabilityModal}
+              variant="text"
+              color="primary"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveAvailability}
+              variant="text"
+              color="primary"
+            >
+              Save
+            </Button>
+          </Box>
+
           {deleteAlert.open && (
             <Alert
               severity={deleteAlert.severity}
@@ -914,6 +987,7 @@ export default function PanelHome() {
                 boxShadow: 3,
                 width: "auto",
                 maxWidth: "90%",
+                zIndex: (theme) => theme.zIndex.tooltip + 1
               }}
             >
               {deleteAlert.message}
@@ -922,7 +996,7 @@ export default function PanelHome() {
         </Box>
       </Modal>
       <Backdrop
-        sx={{ color: "#fff", zIndex: (theme) => theme.zIndex.drawer + 1 }}
+        sx={{ color: "#fff", zIndex: (theme) => theme.zIndex.modal + 1  }}
         open={alertOpen}
       >
         <Alert
@@ -933,6 +1007,7 @@ export default function PanelHome() {
             p: 2,
             minWidth: "20%",
             display: "flex",
+            zIndex: 999999 
           }}
         >
           {alertMessage}

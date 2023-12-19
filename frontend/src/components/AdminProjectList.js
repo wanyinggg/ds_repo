@@ -21,7 +21,7 @@ import {
   MenuItem,
   InputLabel,
   Alert,
-  Backdrop
+  Backdrop,
 } from "@mui/material";
 import SortIcon from "@mui/icons-material/Sort";
 import { tableCellClasses } from "@mui/material/TableCell";
@@ -64,13 +64,16 @@ export default function AdminProjectList() {
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [projects, setProjects] = useState([]);
   const [archivedProjects, setArchivedProjects] = useState([]);
-  const [selectedProject, setSelectedProject] = useState(null);
+  const [selectedProject, setSelectedProject] = useState({
+    id: null,
+    isArchived: false,
+  });
   const [selectedProjectId, setSelectedProjectId] = useState(null);
   const [sortField, setSortField] = useState("");
   const [sortDirection, setSortDirection] = useState("asc");
   const [searchTerm, setSearchTerm] = useState("");
   const [filteredProjects, setFilteredProjects] = useState([]);
-  const [selectedSemester, setSelectedSemester] = useState(null);  
+  const [selectedSemester, setSelectedSemester] = useState(null);
   const [semesters, setSemesters] = useState([]);
   const [displayedProjects, setDisplayedProjects] = useState([]);
   const [alert, setAlert] = useState(location.state || null);
@@ -89,36 +92,50 @@ export default function AdminProjectList() {
     },
   ];
 
-  const deleteProject = (projectId) => {
-    setSelectedProject(projectId);
+  const deleteProject = (projectId, isArchived) => {
+    setSelectedProject({ id: projectId, isArchived });
     setOpen(true);
   };
 
   const handleConfirmDelete = () => {
-    if (selectedProject) {
+    const { id, isArchived } = selectedProject;
+    if (id) {
+      const endpoint = isArchived
+        ? `archived_projects/${id}/`
+        : `projects/${id}/`;
+
       api
-        .delete(`projects/${selectedProject}/`)
-        .then((response) => {
+        .delete(endpoint)
+        .then(() => {
+          // Handle the success scenario
           console.log("Project deleted successfully");
-  
-          // Remove the deleted project from the state
-          setDisplayedProjects((prevProjects) =>
-            prevProjects.filter((project) => project.id !== selectedProject)
-          );
-  
+          fetchProjects();
+
+          // Remove the deleted project from the displayed projects state
+          if (isArchived) {
+            setArchivedProjects((prevProjects) =>
+              prevProjects.filter((project) => project.id !== id)
+            );
+          } else {
+            setDisplayedProjects((prevProjects) =>
+              prevProjects.filter((project) => project.id !== id)
+            );
+          }
+
           handleAlertOpen("Project deleted successfully", "success");
         })
         .catch((error) => {
+          // Handle the error scenario
           console.error("Error deleting project:", error);
           handleAlertOpen("Error deleting project", "error");
         })
         .finally(() => {
-          setSelectedProject(null);
+          // Reset the selected project and close the dialog
+          setSelectedProject({ id: null, isArchived: false });
           setOpen(false);
         });
     }
   };
-  
 
   const handleClose = () => {
     setSelectedProject(null);
@@ -152,7 +169,8 @@ export default function AdminProjectList() {
   }, [displayedProjects, searchTerm]);
 
   useEffect(() => {
-    api.get("semester/")
+    api
+      .get("semester/")
       .then((response) => {
         const sortedSemesters = response.data.sort((a, b) => b.id - a.id);
         setSemesters(sortedSemesters);
@@ -170,11 +188,10 @@ export default function AdminProjectList() {
       });
   }, []);
 
-
-  useEffect(() => {
+  // Function to fetch projects based on the selected semester
+  const fetchProjects = () => {
     let endpoint;
 
-    // Check if selectedSemester is not null
     if (!selectedSemester) {
       console.warn("No semester selected, aborting fetch.");
       return;
@@ -198,6 +215,11 @@ export default function AdminProjectList() {
       .catch((error) => {
         console.error(`Error fetching projects from ${endpoint}:`, error);
       });
+  };
+
+  // Existing useEffect to fetch projects when the component mounts or the selectedSemester changes
+  useEffect(() => {
+    fetchProjects();
   }, [selectedSemester, semesters]);
 
   const handleSort = (field) => {
@@ -253,7 +275,7 @@ export default function AdminProjectList() {
     setAlertOpen(true);
     setTimeout(() => {
       setAlertOpen(false);
-    }, 1500); 
+    }, 1500);
   };
 
   const handleAlertClose = () => {
@@ -373,39 +395,53 @@ export default function AdminProjectList() {
                               <Button
                                 onClick={() => {
                                   if (row.original_creator_name) {
-                                      // If original_creator_name is present, treat as archived
-                                      navigate(`/previousprojectdetail/${row.id}`, {
-                                        state: { navigateSemester: selectedSemester }
-                                      });
+                                    // If original_creator_name is present, treat as archived
+                                    navigate(
+                                      `/previousprojectdetail/${row.id}`,
+                                      {
+                                        state: {
+                                          navigateSemester: selectedSemester,
+                                        },
+                                      }
+                                    );
                                   } else {
-                                      navigate(`/adminprojectdetail/${row.id}`, {
-                                        state: { navigateSemester: selectedSemester }
-                                      });
+                                    navigate(`/adminprojectdetail/${row.id}`, {
+                                      state: {
+                                        navigateSemester: selectedSemester,
+                                      },
+                                    });
                                   }
-                              }}
+                                }}
                                 variant="text"
                                 style={{ textTransform: "none" }}
                               >
                                 Details
                               </Button>
-                              <IconButton
-                                aria-label="edit"
-                                color="primary"
-                                sx={{ marginRight: "0.5rem" }}
-                                onClick={() => {
-                                  navigate(`/adminprojectedit/${row.id}`, {
-                                    state: { returnPath: '/adminproject' },
-                                  });
-                                }}
-                              >
-                                <EditIcon />
-                              </IconButton>
+                              {!row.original_creator_name && (
+                                <IconButton
+                                  aria-label="edit"
+                                  color="primary"
+                                  sx={{ marginRight: "0.5rem" }}
+                                  onClick={() => {
+                                    navigate(`/adminprojectedit/${row.id}`, {
+                                      state: { returnPath: "/adminproject" },
+                                    });
+                                  }}
+                                >
+                                  <EditIcon />
+                                </IconButton>
+                              )}
 
                               <IconButton
                                 aria-label="delete"
                                 color="secondary"
                                 sx={{ marginRight: "0.5rem" }}
-                                onClick={() => deleteProject(row.id)} // Call deleteProject with the project ID
+                                onClick={() =>
+                                  deleteProject(
+                                    row.id,
+                                    row.original_creator_name ? true : false
+                                  )
+                                }
                               >
                                 <DeleteIcon />
                               </IconButton>
@@ -426,17 +462,17 @@ export default function AdminProjectList() {
         onConfirm={handleConfirmDelete}
       />
       <Backdrop
-        sx={{ color: '#fff', zIndex: (theme) => theme.zIndex.drawer + 1 }}
+        sx={{ color: "#fff", zIndex: (theme) => theme.zIndex.drawer + 1 }}
         open={alertOpen}
       >
         <Alert
           severity={alertSeverity}
           onClose={handleAlertClose}
           sx={{
-            boxShadow: 24, 
-            p: 2, 
-            minWidth: '20%', 
-            display: 'flex', 
+            boxShadow: 24,
+            p: 2,
+            minWidth: "20%",
+            display: "flex",
           }}
         >
           {alertMessage}

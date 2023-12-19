@@ -121,7 +121,7 @@ export default function PanelEvaluationTemplate() {
       if (response.status === 200 || response.status === 201) {
         console.log("Scores successfully saved:", response.data);
         navigate("/panelevaluation", {
-          state: { alertMessage: "Project Presentation is evaluated",severity:"success" },
+          state: { alertMessage: "Project is evaluated",severity:"success" },
         });
       } else {
         console.error("Error occurred while saving scores:", response.data);

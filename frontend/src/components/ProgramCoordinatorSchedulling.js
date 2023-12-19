@@ -35,35 +35,50 @@ import CircularProgress from "@mui/material/CircularProgress";
 import Calendar from "react-calendar";
 import "react-calendar/dist/Calendar.css";
 
+function formatDateToYYYYMMDD(date) {
+  const d = new Date(date);
+  const year = d.getFullYear();
+  const month = ('0' + (d.getMonth() + 1)).slice(-2);
+  const day = ('0' + d.getDate()).slice(-2);
+  return `${year}-${month}-${day}`;
+}
+
 function MyCalendarComponent({
   onChange,
   value,
-  datesWithRecommendedSlotsMap,
+  availableDatesMap, // Add this new prop
 }) {
+  // Highlight available dates
   function tileContent({ date, view }) {
-    const dateString = date.toDateString();
-  
-    if (
-      view === "month" &&
-      datesWithRecommendedSlotsMap.has(dateString) &&
-      datesWithRecommendedSlotsMap.get(dateString)
-    ) {
-      return (
-        <div
-          style={{
+    if (view === 'month') {
+      const dateString = formatDateToYYYYMMDD(date); // Use the new function
+      if (availableDatesMap[dateString]) {
+        // Highlight the date
+        return (
+          <div style={{
             backgroundColor: "#D6EAF8",
             borderRadius: "50%",
             color: "#21618C",
             width: "100%",
             height: "100%",
-          }}
-        ></div>
-      );
+          }}></div>
+        );
+      }
     }
-  
     return null;
   }
   
+  
+
+  // Disable unavailable dates
+  function tileDisabled({ date, view }) {
+    const dateString = formatDateToYYYYMMDD(date);
+    if (view === 'month') {
+      // Disable dates that are not in the availableDatesMap
+      return !availableDatesMap[dateString];
+    }
+    return false;
+  }
 
   return (
     <>
@@ -78,6 +93,7 @@ function MyCalendarComponent({
         onChange={onChange}
         value={value}
         tileContent={tileContent}
+        tileDisabled={tileDisabled}
       />
     </>
   );
@@ -92,7 +108,7 @@ const theme = createTheme({
 });
 
 const StyledTableCell = styled(TableCell)(({ theme }) => ({
-  [`&.${tableCellClasses.head}`]: {
+  [`&.${tableCellClasses.head}`]: { 
     backgroundColor: theme.palette.primary.light,
     color: "white",
   },
@@ -138,6 +154,9 @@ export default function ProgramCoordinatorSchedulling() {
   const [customDate, setCustomDate] = useState(null);
   const [customTime, setCustomTime] = useState(null);
   const [selectedDatesWithRecommendedSlotsMap, setSelectedDatesWithRecommendedSlotsMap] = useState(new Map());
+  const [panelTimeSlots, setPanelTimeSlots] = useState([]);
+  const [overlappingSlotsForSelectedProject, setOverlappingSlotsForSelectedProject] = useState({});
+  const [availableDatesMap, setAvailableDatesMap] = useState({});
 
   const storedUser =
     sessionStorage.getItem("user") || localStorage.getItem("user");
@@ -272,18 +291,39 @@ export default function ProgramCoordinatorSchedulling() {
 
     // Fetch the panels
     api.get("student_project_panel/?role=coordinator").then((response) => {
+      console.log("Raw API response for panels:", response.data);
+    
       const panelsData = response.data.reduce((acc, item) => {
+        console.log("Current item:", item); // Debugging
+      
+        if (!item.project || !item.project.id || !item.student || !item.student.id) {
+          console.warn("Invalid item encountered", item);
+          return acc; // Skip this iteration if data is invalid
+        }
+      
         if (!acc[item.project.id]) {
           acc[item.project.id] = {};
         }
+      
+        // Check if this student already exists for the project
+        if (acc[item.project.id][item.student.id]) {
+          console.warn("Overwriting data for", item.project.id, item.student.id);
+        }
+      
         acc[item.project.id][item.student.id] = {
           panels: item.panels,
           assignmentId: item.id,
         };
+
         return acc;
       }, {});
-      setProjectPanels(panelsData);
-    });
+      
+  // Log the processed panelsData
+  console.log("Final panels data:", panelsData);
+
+  setProjectPanels(panelsData);
+});
+
 
     // Fetch presentation schedules
     api.get("/presentation-schedule/").then((response) => {
@@ -373,39 +413,56 @@ export default function ProgramCoordinatorSchedulling() {
     return hours * 60 + minutes;
   };
 
+  // const handleOpenArrangeDialog = (project) => {
+  //   console.log("Selected project:", project);
+  //   setSelectedProjectId(project.id);
+  //   setSelectedStudent(project.student);
+  //   console.log("Selected project:", selectedProjectId);
+  //   console.log("Selected student:", selectedStudent);
+  //   console.log('PanelTimeSlots',panelTimeSlots)
+
+  //   // Find the schedule for this project and student
+  //   const existingSchedule = presentationSchedules.find(
+  //     (s) => s.project.id === project.id && s.student.id === project.student.id
+  //   );
+
+  //   // If a schedule exists, set the state values based on the existing schedule
+  //   if (existingSchedule) {
+  //     setSelectedDate(new Date(existingSchedule.date));
+
+  //     // Manually parse the hours and minutes
+  //     const [hours, minutes] = existingSchedule.start_time.split(":");
+  //     const newTime = new Date();
+  //     newTime.setHours(parseInt(hours, 10));
+  //     newTime.setMinutes(parseInt(minutes, 10));
+  //     setSelectedTime(newTime);
+
+  //     setDuration(convertDurationToMinutes(existingSchedule.duration));
+  //   } else {
+  //     // Reset to default values if no existing schedule
+  //     setSelectedDate(new Date());
+  //     setSelectedTime(new Date());
+  //     setDuration(15);
+  //   }
+
+  //   // Generate the map for the selected project and student
+  //   const newMap = generateDatesWithRecommendedSlotsMap(project.id, project.student.id);
+  //   setSelectedDatesWithRecommendedSlotsMap(newMap);
+  //   setOpenDialog(true);
+  // };
+
   const handleOpenArrangeDialog = (project) => {
     setSelectedProjectId(project.id);
     setSelectedStudent(project.student);
-
-    // Find the schedule for this project and student
-    const existingSchedule = presentationSchedules.find(
-      (s) => s.project.id === project.id && s.student.id === project.student.id
-    );
-
-    // If a schedule exists, set the state values based on the existing schedule
-    if (existingSchedule) {
-      setSelectedDate(new Date(existingSchedule.date));
-
-      // Manually parse the hours and minutes
-      const [hours, minutes] = existingSchedule.start_time.split(":");
-      const newTime = new Date();
-      newTime.setHours(parseInt(hours, 10));
-      newTime.setMinutes(parseInt(minutes, 10));
-      setSelectedTime(newTime);
-
-      setDuration(convertDurationToMinutes(existingSchedule.duration));
-    } else {
-      // Reset to default values if no existing schedule
-      setSelectedDate(new Date());
-      setSelectedTime(new Date());
-      setDuration(15);
-    }
-
-    // Generate the map for the selected project and student
-    const newMap = generateDatesWithRecommendedSlotsMap(project.id, project.student.id);
-    setSelectedDatesWithRecommendedSlotsMap(newMap);
+    handleProjectSelection(project.id);
+  
+    // Retrieve panel IDs associated with the selected project
+    const projectPanelData = projectPanels[project.id] && projectPanels[project.id][project.student.id];
+    const panelIds = projectPanelData ? projectPanelData.panels.map(panel => panel.id) : [];
+  
     setOpenDialog(true);
   };
+  
 
   const extractHourAndMinute = (timeString) => {
     const dateObj = new Date(`1970-01-01T${timeString}Z`); // Using a dummy date to parse the time
@@ -474,26 +531,19 @@ export default function ProgramCoordinatorSchedulling() {
     document.body.removeChild(link);
   }
 
-  const fetchPanelTimeRanges = async () => {
-    try {
-      const response = await api.get("/time_range/?role=coordinator");
-      // Make sure the response is an array before setting the state
-      if (Array.isArray(response.data)) {
-        setAvailability(response.data);
-      } else {
-        // If not an array, log an error or set it to an empty array
-        console.error("Received data is not an array: ", response.data);
-        setAvailability([]);
-      }
-      console.log(response.data);
-    } catch (error) {
-      console.error("Error fetching time ranges:", error);
-    }
-  };
 
   useEffect(() => {
-    fetchPanelTimeRanges();
-  }, []); // Dependency array is empty to run only once on mount
+    const fetchPanelTimeSlots = async () => {
+      try {
+        const response = await api.get("/time_range/?role=coordinator");
+        setPanelTimeSlots(response.data);
+      } catch (error) {
+        console.error('Error fetching panel time slots:', error);
+      }
+    };
+  
+    fetchPanelTimeSlots();
+  }, []);
 
   const isTimeslotBooked = (timeslot) => {
     const startTime = new Date(timeslot);
@@ -622,58 +672,29 @@ const handleDateChange = (newDate) => {
   });
 };
 
+const generateRecommendedTimeslots = (date) => {
+  const dateString = date.toISOString().split("T")[0];
+  const panelData = projectPanels[selectedProjectId]?.[selectedStudent.id];
+    
+  if (!panelData || panelData.panels.length === 0) {
+    console.error("No panels assigned for the selected student");
+    return [];
+  }
 
+  const overlappingSlots = overlappingSlotsForSelectedProject[dateString];
+  if (!overlappingSlots) {
+    return [];
+  }
 
-  const generateRecommendedTimeslots = (date) => {
-    const dateString = date.toISOString().split("T")[0];
-    const panelData = projectPanels[selectedProjectId]?.[selectedStudent.id];
-  
-    if (!panelData || panelData.panels.length === 0) {
-      console.error("No panels assigned for the selected student");
-      return [];
-    }
-  
-    const assignedPanelIds = panelData.panels.map(panel => panel.id);
-    const dayAvailability = availability.filter(
-      item => item.date === dateString && assignedPanelIds.includes(item.panel.id)
-    );
-  
-    // Create a list of all time ranges for each panel
-    let timeRangesForPanels = assignedPanelIds.map(panelId => {
-      return dayAvailability
-        .filter(item => item.panel.id === panelId)
-        .map(item => ({
-          startTime: new Date(item.date + 'T' + item.start_time),
-          endTime: new Date(item.date + 'T' + item.end_time)
-        }));
-    });
-  
-    // Find overlapping time slots
-    let overlappingSlots = [];
-    timeRangesForPanels[0].forEach(range1 => {
-      timeRangesForPanels[1].forEach(range2 => {
-        // Check if there's an overlap
-        let start = new Date(Math.max(range1.startTime, range2.startTime));
-        let end = new Date(Math.min(range1.endTime, range2.endTime));
-        if (start < end) {
-          // Now, break this time range into 15-minute slots and add to overlappingSlots
-          let current = new Date(start);
-          while (current < end) {
-            overlappingSlots.push(new Date(current));
-            current = new Date(current.setMinutes(current.getMinutes() + 15));
-          }
-        }
-      });
-    });
-  
-    // Filter out booked slots and format the times
-    return overlappingSlots.filter(slot => !isTimeslotBooked(slot)).map(slot => {
-      const hours = slot.getHours().toString().padStart(2, '0');
-      const minutes = slot.getMinutes().toString().padStart(2, '0');
-      return `${hours}:${minutes}`;
-    });
-  };
-  
+  let detailedTimeSlots = [];
+  overlappingSlots.forEach(baseSlot => {
+    const baseSlots = generatePresentationSlots(baseSlot);
+    detailedTimeSlots = detailedTimeSlots.concat(baseSlots);
+  });
+
+  // Filter out booked slots
+  return detailedTimeSlots.filter(slot => !isTimeslotBooked(new Date(`${dateString}T${slot}`)));
+};
 
 const generateDatesWithRecommendedSlotsMap = (projectId, studentId) => {
   let newMap = new Map();
@@ -683,6 +704,7 @@ const generateDatesWithRecommendedSlotsMap = (projectId, studentId) => {
     availability.forEach((item) => {
       const date = new Date(item.date);
       const recommendedSlots = generateRecommendedTimeslots(date, panelData.panels);
+      console.log("Recommended time slots:", recommendedSlots);
       if (recommendedSlots.length > 0) {
         newMap.set(date.toDateString(), true);
       }
@@ -700,7 +722,98 @@ useEffect(() => {
   }
 }, [selectedProjectId, selectedStudent]);
 
+ // Function to generate timeslots for a given date
+ const generateTimeslotsForDate = (date) => {
+  const startHours = [9, 11, 14, 16]; // Start hours for each time slot
+  const timeslots = [];
 
+  startHours.forEach(hour => {
+    for (let i = 0; i < 4; i++) { // 4 slots of 15 minutes each
+      const time = new Date(date);
+      time.setHours(hour, i * 15, 0, 0);
+      timeslots.push(time);
+    }
+  });
+
+  return timeslots;
+};
+
+function getOverlappingSlotsForProject(projectId, panelTimeSlots, projectPanels) {
+  const overlappingSlots = {};
+
+  const panelData = projectPanels[projectId];
+  if (!panelData) {
+    console.error("No panel data found for project:", projectId);
+    return overlappingSlots;
+  }
+
+  // Extracting all panel IDs for the project
+  const allPanelIds = Object.values(panelData).flatMap(data => 
+    data.panels.map(panel => panel.id)
+  );
+
+  // Grouping panelTimeSlots by date
+  const slotsByDate = {};
+  panelTimeSlots.forEach(slot => {
+    if (allPanelIds.includes(slot.panel.id)) {
+      if (!slotsByDate[slot.date]) {
+        slotsByDate[slot.date] = [];
+      }
+      slotsByDate[slot.date].push(slot);
+    }
+  });
+
+  // Finding overlapping slots for each date
+  Object.keys(slotsByDate).forEach(date => {
+    const slotsForDate = slotsByDate[date];
+    
+    if (slotsForDate.length === allPanelIds.length) { // Only proceed if all panels have slots on this date
+      let commonSlots = slotsForDate[0].time_slots;
+      
+      slotsForDate.forEach(slot => {
+        commonSlots = commonSlots.filter(time => slot.time_slots.includes(time));
+      });
+
+      if (commonSlots.length > 0) {
+        overlappingSlots[date] = commonSlots;
+      }
+    }
+  });
+
+  return overlappingSlots;
+}
+
+const handleProjectSelection = (projectId) => {
+  const overlappingSlots = getOverlappingSlotsForProject(projectId, panelTimeSlots, projectPanels);
+  console.log('overlappingSlots',overlappingSlots)
+  setOverlappingSlotsForSelectedProject(overlappingSlots);
+
+  // Update availableDatesMap based on overlappingSlots
+  const newAvailableDatesMap = {};
+  Object.keys(overlappingSlots).forEach(date => {
+    const formattedDate = formatDateToYYYYMMDD(date);
+    newAvailableDatesMap[formattedDate] = true;
+  });
+  setAvailableDatesMap(newAvailableDatesMap);
+};
+
+const generatePresentationSlots = (baseTimeSlot) => {
+  const slots = [];
+  const baseHour = parseInt(baseTimeSlot.split(':')[0], 10); // Extract hour from baseTimeSlot
+
+  // Determine the end hour based on the base hour
+  const endHour = baseHour + 2;
+
+  // Loop through each 15 minute interval between baseHour and endHour
+  for (let hour = baseHour; hour < endHour; hour++) {
+    for (let minute = 0; minute < 60; minute += 15) {
+      const timeSlot = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+      slots.push(timeSlot);
+    }
+  }
+
+  return slots;
+};
 
   return (
     <ThemeProvider theme={theme}>
@@ -919,55 +1032,55 @@ useEffect(() => {
           </Typography>
           {datesWithRecommendedSlotsMap && (
             <MyCalendarComponent
-              onChange={handleDateChange}
-              value={selectedDate}
-              datesWithRecommendedSlotsMap={selectedDatesWithRecommendedSlotsMap}
-            />
+            onChange={handleDateChange}
+            value={selectedDate}
+            availableDatesMap={availableDatesMap}
+          />
           )}
 
           <Typography variant="h6" gutterBottom style={{ marginTop: "20px" }}>
             Available Timeslots
           </Typography>
-          <List>
-            {generateRecommendedTimeslots(selectedDate).map((slot, index) => {
-                const isSelected = selectedTime && selectedTime.formattedStartTime === slot;
+          <Typography variant="body2" style={{ marginBottom: "10px", color:"grey" }}>
+    (Click the available timeslot)
+  </Typography>
+  <List>
+  {generateRecommendedTimeslots(selectedDate).map((slot, index) => {
+      const isSelected = selectedTime && selectedTime.formattedStartTime === slot;
+      const isBooked = isTimeslotBooked(
+        new Date(selectedDate.toISOString().split("T")[0] + "T" + slot)
+      );
 
-              const isBooked = isTimeslotBooked(
-                new Date(selectedDate.toISOString().split("T")[0] + "T" + slot)
-              );
+      const [hours, minutes] = slot.split(":").map(Number);
+      const endTime = new Date();
+      endTime.setHours(hours, minutes + 15, 0, 0);
+      const endHours = endTime.getHours().toString().padStart(2, "0");
+      const endMinutes = endTime.getMinutes().toString().padStart(2, "0");
+      const endTimeFormatted = `${endHours}:${endMinutes}`;
 
-              const [hours, minutes] = slot.split(":").map(Number);
-              const endTime = new Date();
-              endTime.setHours(hours, minutes + 15, 0, 0);
-              const endHours = endTime.getHours().toString().padStart(2, "0");
-              const endMinutes = endTime
-                .getMinutes()
-                .toString()
-                .padStart(2, "0");
-              const endTimeFormatted = `${endHours}:${endMinutes}`;
+      return (
+        <ListItem
+          key={index}
+          onClick={() => isBooked ? null : handleTimeslotSelection(slot)}
+          style={{
+            backgroundColor: isSelected ? "#D6EAF8" : isBooked ? "#f0f0f0" : "transparent",
+            cursor: isBooked ? "not-allowed" : "pointer",
+            textDecoration: isBooked ? "line-through" : "none",
+            border: '1px solid #e0e0e0', // Outline each item
+            borderRadius: '4px', // Optional: Add rounded corners
+            marginBottom: '4px' // Add space between items
+          }}
+          disabled={isBooked}
+        >
+          <ListItemText 
+            primary={`${slot} - ${endTimeFormatted}`} 
+            primaryTypographyProps={{ style: { fontSize: '0.875rem' } }}
+          />
+        </ListItem>
+      );
+  })}
+</List>
 
-              return (
-                <ListItem
-                  key={index}
-                  onClick={() =>
-                    isBooked ? null : handleTimeslotSelection(slot)
-                  }
-                  style={{
-                    backgroundColor: isSelected
-                      ? "#D6EAF8"
-                      : isBooked
-                      ? "#f0f0f0"
-                      : "transparent",
-                    cursor: isBooked ? "not-allowed" : "pointer",
-                    textDecoration: isBooked ? "line-through" : "none",
-                  }}
-                  disabled={isBooked}
-                >
-                  <ListItemText primary={`${slot} - ${endTimeFormatted}`} />
-                </ListItem>
-              );
-            })}
-          </List>
 
           <Typography variant="h6" gutterBottom style={{ marginTop: "20px" }}>
             Custom Timeslot

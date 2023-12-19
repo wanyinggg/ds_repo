@@ -3,7 +3,7 @@ import Theme from "./reusable/Theme";
 import SupervisorNavigationBar from "./reusable/SupervisorNavigationBar";
 import SupervisorProjectList from "./SupervisorProjectList";
 import { ThemeProvider } from "@mui/material/styles";
-import { Button, Alert, Backdrop } from "@mui/material";
+import { Button, Alert, Backdrop, Grid } from "@mui/material";
 import { useLocation, useNavigate } from "react-router-dom";
 import AddIcon from "@material-ui/icons/Add";
 
@@ -56,8 +56,10 @@ export default function SupervisorProject() {
           position: "absolute",
           right: "30px",
         }}
-        startIcon={<AddIcon />}
+        
+        // startIcon={<AddIcon />}
       >
+        <span style={{ fontSize: '16px', marginRight: '8px'}}>+</span>
         Add Project
       </Button>
 

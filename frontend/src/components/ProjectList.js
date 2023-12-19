@@ -18,8 +18,12 @@ import {
   TextField,
   ThemeProvider,
   CircularProgress,
+  Typography,
+  Alert,
+  Backdrop,
 } from "@mui/material";
 import SortIcon from "@mui/icons-material/Sort";
+import PeopleIcon from "@mui/icons-material/People";
 import { tableCellClasses } from "@mui/material/TableCell";
 import { createTheme, styled } from "@mui/material/styles";
 import { useNavigate } from "react-router-dom";
@@ -64,6 +68,29 @@ export default function ProjectList(props) {
   const [proposalStatus, setProposalStatus] = useState("");
   const [loading, setLoading] = useState(false);
   const [lecturerStudentCounts, setLecturerStudentCounts] = useState({});
+  const [semesterInfo, setSemesterInfo] = useState({});
+  const [isProgramCoordinator, setIsProgramCoordinator] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [numOfStudents, setNumOfStudents] = useState("");
+  const [isLecturer, setIsLecturer] = useState(false);
+  const [numOfStudentsPerLecturer, setNumOfStudentsPerLecturer] =useState(null);
+  const [studentLimitId, setStudentLimitId] = useState(null);
+  const [alertOpen, setAlertOpen] = React.useState(false);
+  const [alertMessage, setAlertMessage] = React.useState("");
+  const [alertSeverity, setAlertSeverity] = React.useState("success");
+
+  const handleAlertOpen = (message, severity = "success") => {
+    setAlertMessage(message);
+    setAlertSeverity(severity);
+    setAlertOpen(true);
+    setTimeout(() => {
+      setAlertOpen(false);
+    }, 1500);
+  };
+
+  const handleAlertClose = () => {
+    setAlertOpen(false);
+  };
 
   const handleChangePage = (event, newPage) => {
     setPage(newPage);
@@ -86,7 +113,7 @@ export default function ProjectList(props) {
   const columns = [
     { label: "No." },
     { label: "Project Title", field: "title" },
-    { label: "Supervisor", field: "created_by" },
+    { label: "Supervisor", field: "created_by.full_name" },
     {
       label: "",
       format: (value) => <Button>Details</Button>,
@@ -162,6 +189,50 @@ export default function ProjectList(props) {
       .catch((error) => {
         console.error("Error fetching proposal status:", error.response.data);
       });
+
+    if (!semesterInfo.semester || !semesterInfo.academicYear) {
+      api
+        .get("semester/")
+        .then((response) => {
+          const allSemesters = response.data;
+
+          // Find the semester where is_latest is true
+          const latestSemester = allSemesters.find((sem) => sem.is_latest);
+
+          setSemesterInfo(latestSemester);
+          console.error("semester", semesterInfo);
+        })
+        .catch((err) => {
+          console.error("Error fetching semester data:", err.response.data);
+        });
+    }
+
+    const storedUser =
+      sessionStorage.getItem("user") || localStorage.getItem("user");
+    const user = storedUser ? JSON.parse(storedUser) : null;
+
+    if (user && user.groups.includes(4)) {
+      setIsProgramCoordinator(true);
+    } else {
+      setIsProgramCoordinator(false);
+    }
+
+    if (user && user.groups.includes(2)) {
+      setIsLecturer(true);
+    } else {
+      setIsLecturer(false);
+    }
+
+    api
+      .get("/student_limit/")
+      .then((response) => {
+        setNumOfStudentsPerLecturer(response.data[0].num_of_students);
+      })
+      .catch((error) => {
+        console.error("Error fetching number of students per lecturer:", error);
+      });
+
+      fetchNumOfStudentsPerLecturer();
   }, []);
 
   useEffect(() => {
@@ -206,13 +277,17 @@ export default function ProjectList(props) {
     }
   };
 
-  const sortedProjects = filteredProjects.sort((a, b) => {
-    const fieldA = a[sortField];
-    const fieldB = b[sortField];
+  const getNestedValue = (obj, path) => {
+    return path.split(".").reduce((value, key) => {
+      return value ? value[key] : null;
+    }, obj);
+  };
 
-    if (fieldA === fieldB) {
-      return 0;
-    }
+  const sortedProjects = filteredProjects.sort((a, b) => {
+    const fieldA = getNestedValue(a, sortField);
+    const fieldB = getNestedValue(b, sortField);
+
+    if (fieldA === fieldB) return 0;
 
     if (typeof fieldA === "string" && typeof fieldB === "string") {
       return sortDirection === "asc"
@@ -236,24 +311,166 @@ export default function ProjectList(props) {
     page * rowsPerPage + rowsPerPage
   );
 
+  const handleDialogToggle = () => {
+    setNumOfStudents(numOfStudentsPerLecturer ? numOfStudentsPerLecturer.toString() : '');
+    setIsDialogOpen(!isDialogOpen);
+  };
+
+  const handleSave = () => {
+    setLoading(true);
+    const data = { num_of_students: numOfStudents, semester: semesterInfo.id };
+  
+    const saveOrUpdate = studentLimitId ? 
+      api.patch(`/student_limit/${studentLimitId}/`, data) :
+      api.post('/student_limit/', data);
+  
+    saveOrUpdate
+      .then(response => {
+        console.log("Data saved successfully:", response.data);
+        handleAlertOpen("Number of students updated successfully");
+        fetchNumOfStudentsPerLecturer();
+        setIsDialogOpen(false);
+      })
+      .catch(error => {
+        console.error("Error saving data:", error);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  };
+  
+
+  // Function to fetch the number of students per lecturer
+  const fetchNumOfStudentsPerLecturer = () => {
+    api.get('/student_limit/')
+      .then((response) => {
+        if (response.data.length > 0) {
+          setNumOfStudentsPerLecturer(response.data[0].num_of_students);
+          setStudentLimitId(response.data[0].id); // Assuming 'id' is the field name
+        
+          console.log("Number of students per lecturer: ", response.data[0].num_of_students);
+        }
+      })
+      .catch((error) => {
+        console.error("Error fetching number of students per lecturer:", error.response.data);
+      });
+  };
+  
+
+  const handleCancel = () => {
+    setIsDialogOpen(false);
+  };
+
   return (
     <ThemeProvider theme={theme}>
       <Grid container spacing={2}>
         <Grid item xs={12}>
-          <Grid item xs={12}>
-            <TextField
-              label="Search Project"
-              variant="outlined"
-              size="small"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              sx={{
-                float: "right",
-                marginTop: "2rem",
-                marginRight: "2.5rem",
-                marginBottom: "1rem",
-              }}
-            />
+          <Grid
+            container
+            justifyContent="space-between"
+            alignItems="center"
+            spacing={2}
+            sx={{ padding: 2, marginBottom: 2 }}
+          >
+            {/* Semester Information */}
+            <Grid item>
+              <Typography
+                variant="h6"
+                sx={{
+                  fontWeight: "bold",
+                  color: "#311b92",
+                  marginLeft: "20px",
+                }}
+              >
+                Semester {semesterInfo.semester}, {semesterInfo.academic_year}
+              </Typography>
+
+              {/* Show the 'Set Number of Students for Each Lecturer' button only for program coordinator and when numOfStudentsPerLecturer is null */}
+              {isProgramCoordinator && numOfStudentsPerLecturer === null && (
+                <Button
+                  variant="outlined"
+                  color="primary"
+                  style={{
+                    marginLeft: "20px",
+                    marginTop: "10px",
+                    textTransform: "none",
+                    borderRadius: "8px",
+                    boxShadow: "0px 2px 4px rgba(0, 0, 0, 0.1)",
+                    transition: "all 0.3s ease",
+                    fontSize: "1rem",
+                    fontWeight: "500",
+                  }}
+                  onMouseOver={(e) =>
+                    (e.target.style.backgroundColor = "#f5f5f5")
+                  }
+                  onMouseOut={(e) =>
+                    (e.target.style.backgroundColor = "transparent")
+                  }
+                  onClick={handleDialogToggle}
+                >
+                  Set Number of Students for Each Lecturer
+                </Button>
+              )}
+
+              {/* Display the number of students per lecturer if data is available */}
+              {numOfStudentsPerLecturer !== null && isLecturer &&(
+                <Box
+                  sx={{
+                    margin: "20px",
+                    marginTop: "0.2rem",
+                    marginBottom: "0.1rem",
+                  }}
+                >
+                  <Paper
+                    sx={{
+                      padding: 1,
+                      marginY: 0.1,
+                      backgroundColor: "#d7d5f2",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                    }}
+                  >
+                    <Box sx={{ display: "flex", alignItems: "center" }}>
+                      <PeopleIcon sx={{ marginRight: 1, color: "#311b92" }} />
+                      <Typography variant="h7" sx={{ color: "#311b92" }}>
+                        Number of Students for Each Lecturer:{" "}
+                        {numOfStudentsPerLecturer}
+                      </Typography>
+                    </Box>
+                    {isProgramCoordinator && (
+                      <Button
+                        variant="text"
+                        sx={{
+                          textDecoration: "underline",
+                          textTransform: "none",
+                          fontSize: "0.875rem",
+                          color: "#1976d2",
+                          ":hover": { bgcolor: "transparent" },
+                        }}
+                        onClick={handleDialogToggle}
+                      >
+                        Edit
+                      </Button>
+                    )}
+                  </Paper>
+                </Box>
+              )}
+            </Grid>
+
+            {/* Search Field */}
+            <Grid item sx={{ marginLeft: "20px", marginRight: "20px" }}>
+              <TextField
+                label="Search Project"
+                variant="outlined"
+                size="small"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                sx={{
+                  maxWidth: "300px", // Adjust the width as needed
+                }}
+              />
+            </Grid>
           </Grid>
           <Box sx={{ margin: "30px", marginTop: "0.2rem" }}>
             <Paper sx={{ width: "100%", overflow: "hidden" }}>
@@ -306,7 +523,7 @@ export default function ProjectList(props) {
                           <StyledTableCell>{row.title}</StyledTableCell>
                           <StyledTableCell>
                             {row.created_by.full_name}
-                            {lecturerStudentCounts[row.created_by.id] >= 4 && (
+                            {lecturerStudentCounts[row.created_by.id] >= numOfStudentsPerLecturer && (
                               <span
                                 style={{
                                   backgroundColor: "#ede5ff",
@@ -346,7 +563,7 @@ export default function ProjectList(props) {
                                   proposalStatus === "Approved" ||
                                   row.assigned_to.length ==
                                     row.num_of_student ||
-                                  lecturerStudentCounts[row.created_by.id] >= 4
+                                  lecturerStudentCounts[row.created_by.id] >= numOfStudentsPerLecturer
                                 }
                               >
                                 Apply
@@ -393,7 +610,48 @@ export default function ProjectList(props) {
             </Dialog>
           </Grid>
         )}
+        <Dialog open={isDialogOpen} onClose={handleDialogToggle}>
+          <DialogTitle>Number of Students for Each Lecturer</DialogTitle>
+          <DialogContent>
+            <TextField
+              autoFocus
+              margin="dense"
+              id="numOfStudents"
+              label="Number of Students"
+              type="number"
+              fullWidth
+              variant="outlined"
+              value={numOfStudents}
+              onChange={(e) => setNumOfStudents(e.target.value)}
+            />
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={handleCancel} color="primary">
+              Cancel
+            </Button>
+            <Button onClick={handleSave} color="primary">
+              Save
+            </Button>
+          </DialogActions>
+        </Dialog>
       </Grid>
+      <Backdrop
+        sx={{ color: "#fff", zIndex: (theme) => theme.zIndex.drawer + 1 }}
+        open={alertOpen}
+      >
+        <Alert
+          severity={alertSeverity}
+          onClose={handleAlertClose}
+          sx={{
+            boxShadow: 24,
+            p: 2,
+            minWidth: "20%",
+            display: "flex",
+          }}
+        >
+          {alertMessage}
+        </Alert>
+      </Backdrop>
     </ThemeProvider>
   );
 }

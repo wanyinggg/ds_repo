@@ -19,8 +19,13 @@ import { createTheme, ThemeProvider } from "@mui/material/styles";
 import Theme from "./reusable/Theme";
 import AdminNavigationBar from "./reusable/AdminNavigationBar";
 import BookIcon from "@mui/icons-material/Book";
+import EventNoteIcon from "@mui/icons-material/EventNote";
 import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
 import api from "./axios";
+
+function isValidDate(d) {
+  return d.match(/^\d{4}-\d{2}-\d{2}$/) && !isNaN(new Date(d).getDate());
+}
 
 export default function AdminSemester() {
   const [user, setUser] = useState(null);
@@ -31,8 +36,8 @@ export default function AdminSemester() {
   const [alertOpen, setAlertOpen] = useState(false);
   const [alertMessage, setAlertMessage] = useState("");
   const [alertSeverity, setAlertSeverity] = useState("success");
-
   const [semesterInfo, setSemesterInfo] = useState({});
+  const [semesterStartDate, setSemesterStartDate] = useState(new Date());
 
   useEffect(() => {
     const user = sessionStorage.getItem("user") || localStorage.getItem("user");
@@ -74,8 +79,9 @@ export default function AdminSemester() {
     const newSemesterData = {
       semester: semester,
       academic_year: academicYear,
+      start_date: semesterStartDate.toISOString().split("T")[0],
     };
-  
+
     api
       .post("semester/", newSemesterData)
       .then((response) => {
@@ -91,7 +97,6 @@ export default function AdminSemester() {
         console.error("Error:", error.response?.data || error.message);
       });
   };
-  
 
   const handleAlertOpen = (message, severity = "success") => {
     setAlertMessage(message);
@@ -109,14 +114,14 @@ export default function AdminSemester() {
 
   const handleArchiveProjects = () => {
     api
-      .post("projects/archive/") 
+      .post("projects/archive/")
       .then((response) => {
         console.log("Projects archived:", response.data);
       })
       .catch((error) => {
         console.error("Error archiving projects:", error.response.data);
       });
-};
+  };
 
   return (
     <Grid container direction="column" spacing={3}>
@@ -164,6 +169,26 @@ export default function AdminSemester() {
                   Academic Year: {semesterInfo.academic_year}
                 </Typography>
               </Grid>
+
+              <Grid item xs={12} md={6}>
+                <Typography variant="body1">
+                  <EventNoteIcon
+                    color="primary"
+                    sx={{ verticalAlign: "middle", marginRight: 1 }}
+                  />
+                  Semester Start Date: {semesterInfo.start_date}
+                </Typography>
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <Typography variant="body1">
+                  <EventNoteIcon
+                    color="primary"
+                    sx={{ verticalAlign: "middle", marginRight: 1 }}
+                  />
+                  Semester End Date (Week 14):{" "}
+                  {semesterInfo.end_date /* Format date as needed */}
+                </Typography>
+              </Grid>
             </Grid>
           </CardContent>
         </Card>
@@ -177,7 +202,7 @@ export default function AdminSemester() {
             }}
             onClick={handleClickOpen}
           >
-            Update Semester
+            Update New Semester
           </Button>
         </Grid>
       </Grid>
@@ -211,6 +236,23 @@ export default function AdminSemester() {
               value={academicYear}
               onChange={(e) => setAcademicYear(e.target.value)}
             />
+            <TextField
+              margin="dense"
+              id="semesterStartDate"
+              label="Semester Start Date"
+              type="date"
+              fullWidth
+              value={semesterStartDate.toISOString().split("T")[0]}
+              onChange={(e) => {
+                const dateValue = e.target.value;
+                if (isValidDate(dateValue)) { 
+                  setSemesterStartDate(new Date(dateValue));
+                }
+              }}
+              InputLabelProps={{
+                shrink: true,
+              }}
+            />
           </DialogContent>
           <DialogActions>
             <Button onClick={handleClose} color="primary">
@@ -222,19 +264,19 @@ export default function AdminSemester() {
           </DialogActions>
         </Dialog>
         <Backdrop
-          sx={{ color: '#fff', zIndex: (theme) => theme.zIndex.drawer + 1 }}
+          sx={{ color: "#fff", zIndex: (theme) => theme.zIndex.drawer + 1 }}
           open={alertOpen}
-          onClick={handleAlertClose} 
+          onClick={handleAlertClose}
         >
           <Alert
             severity={alertSeverity}
             onClose={handleAlertClose}
             sx={{
-              boxShadow: 24, 
-              p: 2, 
-              minWidth: '20%', 
-              display: 'flex', 
-              alignItems: 'center',
+              boxShadow: 24,
+              p: 2,
+              minWidth: "20%",
+              display: "flex",
+              alignItems: "center",
             }}
           >
             {alertMessage}

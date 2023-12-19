@@ -1,13 +1,12 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.utils import timezone
-from datetime import datetime
+from datetime import datetime, time, timedelta
 import uuid
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
-from datetime import datetime
 from django.db.models import Avg
 from decimal import Decimal
 
@@ -39,9 +38,25 @@ class Semester(models.Model):
 
     semester = models.PositiveSmallIntegerField(choices=semester_choices, default=1)
     academic_year = models.CharField(max_length=50)
+    start_date = models.DateField(null=True, blank=True)  
+    end_date = models.DateField(null=True, blank=True)
+
+    def save(self, *args, **kwargs):
+        if self.start_date and not self.end_date:
+            self.end_date = self.calculate_end_date()
+        super().save(*args, **kwargs)
+
+    def calculate_end_date(self):
+        # semester duration is 15 weeks (include mid sem break) and ends on a Friday
+        start = self.start_date
+        end = start + timedelta(weeks=14)
+        while end.weekday() != 4:  # 0 = Monday, 4 = Friday
+            end += timedelta(days=1)
+        return end
 
     def __str__(self):
         return f"Semester {self.semester} - {self.academic_year}"
+
 
 class Project(models.Model):
     title = models.CharField(max_length=255)
@@ -329,8 +344,27 @@ class Notification(models.Model):
     ]
     type = models.CharField(max_length=255, choices=TYPE_CHOICES)
 
+class SingleTimeSlot(models.Model):
+    TIME_SLOTS = [
+        (time(9, 0), '9-11am'),
+        (time(11, 0), '11-1pm'),
+        (time(14, 0), '2-4pm'),
+        (time(16, 0), '4-6pm'),
+    ]
+    slot = models.TimeField(choices=TIME_SLOTS, unique=True, default=None)
+
+    def __str__(self):
+        return self.get_slot_display()
+    
 class TimeRange(models.Model):
-    panel = models.ForeignKey(User, on_delete=models.CASCADE, related_name='panel')
+    panel = models.ForeignKey(User, on_delete=models.CASCADE, related_name='time_ranges')
     date = models.DateField()
-    start_time = models.TimeField()
-    end_time = models.TimeField()
+    time_slots = models.ManyToManyField(SingleTimeSlot)
+
+    def __str__(self):
+        slots = ', '.join([str(slot) for slot in self.time_slots.all()])
+        return f"{self.panel} - {self.date} [{slots}]"
+
+class LecturerStudentLimit(models.Model):
+    num_of_students = models.IntegerField()
+    semester = models.ForeignKey(Semester, on_delete=models.CASCADE, related_name='lecturer_limits')

@@ -460,11 +460,10 @@ export default function ProgramCoordinatorHome() {
               multiple
               value={selectedPanels}
               onChange={(event) => {
-                if (event.target.value.length <= 3) {
+                if (event.target.value.length <= 2) {
                   setSelectedPanels(event.target.value);
                 } else {
-                  // You can optionally show an alert or a message here to inform the user
-                  handleAlertOpen("You can select a maximum of 3 panels.","error");
+                  handleAlertOpen("You can only select a maximum of 2 panels.","error");
                 }
               }}
               label="Panels"
@@ -527,7 +526,7 @@ export default function ProgramCoordinatorHome() {
         </DialogActions>
       </Dialog>
       <Backdrop
-        sx={{ color: '#fff', zIndex: (theme) => theme.zIndex.drawer + 1 }}
+        sx={{ color: '#fff', zIndex: (theme) => theme.zIndex.modal + 1  }}
         open={alertOpen}
       >
         <Alert

@@ -168,8 +168,8 @@ export default function StudentProject() {
       projectContent = (
         <Grid container justifyContent="center" style={{ padding: "30px" }}>
           <Grid item xs={12} md={12}>
-            <Paper style={{ padding: 16, backgroundColor: '#e3f2fd' }}>
-              <Typography variant="h5">
+            <Paper style={{ padding: 16, backgroundColor: '#d7dcf7', marginLeft:16, marginRight:16 }}>
+              <Typography variant="h5" fontWeight="bold">
                 Your project application is pending
               </Typography>
               <br></br>
@@ -186,8 +186,8 @@ export default function StudentProject() {
       projectContent = (
         <Grid container style={{ padding: "30px" }}>
           <Grid item xs={12} md={12}>
-          <Paper style={{ padding: 16, backgroundColor: '#e3f2fd' }}> 
-              <Typography variant="h5">
+          <Paper style={{ padding: 16, backgroundColor: '#d7dcf7', marginLeft:16, marginRight:16}}> 
+              <Typography variant="h5" fontWeight="bold">
                 Your proposal application is pending
               </Typography>
               <br></br>

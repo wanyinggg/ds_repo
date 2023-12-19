@@ -23,6 +23,7 @@ import CoordinatorNavigationBar from "./reusable/CoordinatorNavigationBar";
 import { tableCellClasses } from "@mui/material/TableCell";
 import { createTheme, ThemeProvider, styled } from "@mui/material/styles";
 import api from "./axios";
+import * as XLSX from "xlsx";
 
 const theme = createTheme({
   palette: {
@@ -191,7 +192,9 @@ export default function ProgramCoordinatorHome() {
       setFilteredProjects(filtered);
 
       // Fetch the panels
-      const panelResponse = await api.get("student_project_panel/?role=coordinator");
+      const panelResponse = await api.get(
+        "student_project_panel/?role=coordinator"
+      );
       const panelsData = panelResponse.data.reduce((acc, item) => {
         if (!acc[item.project.id]) {
           acc[item.project.id] = {};
@@ -444,7 +447,92 @@ export default function ProgramCoordinatorHome() {
     }
   };
 
-  const generateCSV = () => {
+  // const generateCSV = () => {
+  //   // Find the maximum number of panels across all projects
+  //   let maxPanels = 0;
+  //   paginatedProjects.forEach((row) => {
+  //     const key = `${row.id}-${row.student.id}`;
+  //     const panelEvaluation = panelEvaluations[key] || [];
+  //     maxPanels = Math.max(maxPanels, panelEvaluation.length);
+  //   });
+
+  //   // Construct the dynamic headers based on the maximum number of panels
+  //   const baseHeaders = [
+  //     "No.",
+  //     "Student",
+  //     "Matric Number",
+  //     "Proposal Score",
+  //     "Report Score",
+  //     "Conduct Score",
+  //     "Total Supervisor Score",
+  //   ];
+  //   const panelHeaders = Array.from(
+  //     { length: maxPanels },
+  //     (_, i) => `Panel ${i + 1}`
+  //   );
+  //   const otherHeaders = ["Average Panel Score", "Final Score", "Grade"];
+  //   const headers = [...baseHeaders, ...panelHeaders, ...otherHeaders];
+
+  //   // Start the CSV content with the headers
+  //   let csvContent = headers.join(",") + "\n";
+
+  //   paginatedProjects.forEach((row, index) => {
+  //     const projectNumber = index + 1;
+  //     const key = `${row.id}-${row.student.id}`;
+  //     const supervisorEvaluation = supervisorEvaluations[key] || [];
+  //     const panelEvaluation = panelEvaluations[key] || [];
+
+  //     const supervisor = supervisorEvaluation[0] || {};
+  //     const panels = panelEvaluation.map((e) => e.pitching_score).join(",");
+  //     const totalPanelScore =
+  //       panelEvaluation.length > 0 ? panelEvaluation[0].average_score : "";
+
+  //     const supervisorScore =
+  //       parseFloat(supervisor.total_supervisor_score) || null;
+  //     const panelScore = parseFloat(totalPanelScore) || null;
+  //     let totalScore = null;
+  //     let grade = null;
+
+  //     if (supervisorScore !== null && panelScore !== null) {
+  //       totalScore = (supervisorScore + panelScore).toFixed(2);
+  //       grade = calculateGrade(totalScore);
+  //     }
+
+  //     const panelScores =
+  //       panelEvaluations[key]?.map((e) => e.pitching_score) || [];
+  //     // Ensure the array has the same length as maxPanels, padding with empty strings if needed
+  //     const paddedPanelScores = [
+  //       ...panelScores,
+  //       ...Array(maxPanels - panelScores.length).fill(""),
+  //     ];
+
+  //     const rowData = [
+  //       projectNumber,
+  //       row.student_fullname,
+  //       row.student_username,
+  //       supervisor.proposal_score || "",
+  //       supervisor.report_score || "",
+  //       supervisor.conduct_score || "",
+  //       supervisor.total_supervisor_score || "",
+  //       ...paddedPanelScores,
+  //       totalPanelScore,
+  //       totalScore || "",
+  //       grade || "",
+  //     ].join(",");
+
+  //     csvContent += rowData + "\n";
+  //   });
+
+  //   const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  //   const url = URL.createObjectURL(blob);
+  //   const link = document.createElement("a");
+  //   link.setAttribute("href", url);
+  //   link.setAttribute("download", "student_reports.csv");
+  //   document.body.appendChild(link);
+  //   link.click();
+  //   document.body.removeChild(link);
+  // };
+  const generateExcel = () => {
     // Find the maximum number of panels across all projects
     let maxPanels = 0;
     paginatedProjects.forEach((row) => {
@@ -470,20 +558,18 @@ export default function ProgramCoordinatorHome() {
     const otherHeaders = ["Average Panel Score", "Final Score", "Grade"];
     const headers = [...baseHeaders, ...panelHeaders, ...otherHeaders];
 
-    // Start the CSV content with the headers
-    let csvContent = headers.join(",") + "\n";
-
-    paginatedProjects.forEach((row, index) => {
-      const projectNumber = index + 1;
+    // Map the data into a format suitable for Excel
+    const data = paginatedProjects.map((row, index) => {
       const key = `${row.id}-${row.student.id}`;
       const supervisorEvaluation = supervisorEvaluations[key] || [];
       const panelEvaluation = panelEvaluations[key] || [];
 
       const supervisor = supervisorEvaluation[0] || {};
-      const panels = panelEvaluation.map((e) => e.pitching_score).join(",");
+      const panelScores = panelEvaluation.map((e) => e.pitching_score);
       const totalPanelScore =
         panelEvaluation.length > 0 ? panelEvaluation[0].average_score : "";
 
+      // Calculate the total score and grade if both scores are available
       const supervisorScore =
         parseFloat(supervisor.total_supervisor_score) || null;
       const panelScore = parseFloat(totalPanelScore) || null;
@@ -495,39 +581,41 @@ export default function ProgramCoordinatorHome() {
         grade = calculateGrade(totalScore);
       }
 
-      const panelScores =
-        panelEvaluations[key]?.map((e) => e.pitching_score) || [];
       // Ensure the array has the same length as maxPanels, padding with empty strings if needed
       const paddedPanelScores = [
         ...panelScores,
         ...Array(maxPanels - panelScores.length).fill(""),
       ];
 
-      const rowData = [
-        projectNumber,
-        row.student_fullname,
-        row.student_username,
-        supervisor.proposal_score || "",
-        supervisor.report_score || "",
-        supervisor.conduct_score || "",
-        supervisor.total_supervisor_score || "",
-        ...paddedPanelScores,
-        totalPanelScore,
-        totalScore || "",
-        grade || "",
-      ].join(",");
-
-      csvContent += rowData + "\n";
+      return {
+        "No.": index + 1,
+        Student: row.student_fullname,
+        "Matric Number": row.student_username,
+        "Proposal Score": supervisor.proposal_score || "",
+        "Report Score": supervisor.report_score || "",
+        "Conduct Score": supervisor.conduct_score || "",
+        "Total Supervisor Score": supervisor.total_supervisor_score || "",
+        ...Object.fromEntries(
+          paddedPanelScores.map((score, i) => [`Panel ${i + 1}`, score])
+        ),
+        "Average Panel Score": totalPanelScore,
+        "Final Score": totalScore || "",
+        Grade: grade || "",
+      };
     });
 
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", "student_reports.csv");
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    // Create a new workbook and add the worksheet
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(data);
+
+    // Add headers
+    XLSX.utils.sheet_add_aoa(ws, [headers], { origin: "A1" });
+
+    // Add the worksheet to the workbook
+    XLSX.utils.book_append_sheet(wb, ws, "Report");
+
+    // Write the workbook to a file
+    XLSX.writeFile(wb, "student_reports.xlsx");
   };
 
   return (
@@ -686,13 +774,21 @@ export default function ProgramCoordinatorHome() {
               />
             </Paper>
           </Box>
-          <Button
+          {/* <Button
             onClick={generateCSV}
             variant="contained"
             color="primary"
             sx={{ marginLeft: "30px", marginBottom: "20px" }}
           >
             Generate csv
+          </Button> */}
+          <Button
+            onClick={generateExcel}
+            variant="contained"
+            color="primary"
+            sx={{ marginLeft: "30px", marginBottom: "20px" }}
+          >
+            Generate Excel
           </Button>
         </Grid>
       </Grid>

@@ -67,6 +67,7 @@ export default function SupervisorProjectList() {
     { label: "No." },
     { label: "Project Title" },
     { label: "Student" },
+    { label: "Matric Number" },
     {
       label: "",
       format: (value) => <Button>Details</Button>,
@@ -203,6 +204,7 @@ export default function SupervisorProjectList() {
                             <StyledTableCell>{projectNumber}</StyledTableCell>
                             <StyledTableCell>{row.title}</StyledTableCell>
                             <StyledTableCell>{row.assigned_to.map(user => user.full_name).join(', ')}</StyledTableCell>
+                            <StyledTableCell>{row.assigned_to.map(user => user.username).join(', ')}</StyledTableCell>
                             <StyledTableCell style={{ width: "20%" }}>
                               <Button
                                 onClick={() => {

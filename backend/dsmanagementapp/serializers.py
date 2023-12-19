@@ -83,7 +83,7 @@ class UserSerializer(serializers.ModelSerializer):
 class SemesterSerializer(serializers.ModelSerializer):
     class Meta:
         model = Semester
-        fields = ['id', 'semester', 'academic_year']
+        fields = ['id', 'semester', 'academic_year', 'start_date', 'end_date']  
 
 class ProjectSerializer(serializers.ModelSerializer):
     created_by = UserSerializer(read_only=True)
@@ -294,15 +294,19 @@ class NotificationSerializer(serializers.ModelSerializer):
 class TimeRangeSerializer(serializers.ModelSerializer):
     panel = UserSerializer(read_only=True)
     panel_id = serializers.PrimaryKeyRelatedField(queryset=User.objects.all(), write_only=True, source='panel')
+    time_slots = serializers.SlugRelatedField(
+        many=True,
+        slug_field='slot',
+        queryset=SingleTimeSlot.objects.all()
+    )
+
     class Meta:
         model = TimeRange
-        fields = ['id', 'panel', 'panel_id', 'date', 'start_time', 'end_time']
+        fields = ['id', 'panel', 'panel_id', 'date', 'time_slots']
         read_only_fields = ['panel']
 
-    def validate(self, data):
-        """
-        Check that start time is before end time.
-        """
-        if data['start_time'] >= data['end_time']:
-            raise serializers.ValidationError("End time must be after start time")
-        return data
+
+class LecturerStudentLimitSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = LecturerStudentLimit
+        fields = ['id', 'num_of_students', 'semester']

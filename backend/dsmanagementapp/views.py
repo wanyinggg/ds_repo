@@ -29,6 +29,8 @@ from rest_framework import generics
 import os
 from rest_framework.exceptions import APIException
 from django.core.files.base import ContentFile
+from django.shortcuts import get_list_or_404
+from django.utils.dateparse import parse_date
 
 class GroupViewSet(viewsets.ModelViewSet):
     queryset = Group.objects.all()
@@ -1233,12 +1235,12 @@ class StudentProjectPanelViewSet(viewsets.ModelViewSet):
             new_panel_ids = updated_panel_ids - original_panel_ids
             removed_panel_ids = original_panel_ids - updated_panel_ids
 
-            # If there are new or removed panel members, we pass created=False to indicate an update
-            if new_panel_ids or removed_panel_ids:
-                self._notify_students_and_panels(instance, created=False, new_panel_ids=new_panel_ids, removed_panel_ids=removed_panel_ids)
-            else:
-                # If there are no changes in the panel members, you can choose not to send any notifications
-                pass
+            # # If there are new or removed panel members, we pass created=False to indicate an update
+            # if new_panel_ids or removed_panel_ids:
+            #     self._notify_students_and_panels(instance, created=False, new_panel_ids=new_panel_ids, removed_panel_ids=removed_panel_ids)
+            # else:
+            #     # If there are no changes in the panel members, you can choose not to send any notifications
+            #     pass
 
 class PresentationScheduleViewSet(viewsets.ModelViewSet):
     queryset = PresentationSchedule.objects.all()
@@ -1384,6 +1386,13 @@ class SemesterViewSet(viewsets.ModelViewSet):
     queryset = Semester.objects.all()
     serializer_class = SemesterSerializer
 
+    def get_permissions(self):
+        if self.action == 'list':
+            permission_classes = [permissions.AllowAny]
+        else:
+            permission_classes = [permissions.IsAuthenticated]
+        return [permission() for permission in permission_classes]
+
     def list(self, request):
         all_semesters = Semester.objects.all()
         recent_semester_id = Semester.objects.latest('id').id
@@ -1397,6 +1406,7 @@ class SemesterViewSet(viewsets.ModelViewSet):
         if serializer.is_valid():
              # Delete all notifications
             Notification.objects.all().delete()
+            TimeRange.objects.all().delete()
             serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -1406,9 +1416,9 @@ class SemesterViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(
             instance, data=request.data, partial=True)
         if serializer.is_valid():
+            Notification.objects.all().delete()
+            TimeRange.objects.all().delete()
             serializer.save()
-
-
             return Response(serializer.data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -1446,31 +1456,103 @@ class TimeRangeViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         role = self.request.query_params.get('role', None)
+        date = self.request.query_params.get('date', None)
+
+        queryset = TimeRange.objects
+
+        if date:
+            queryset = queryset.filter(date=date)
+
         #Program Coordinator
         if role == 'coordinator':
-            return TimeRange.objects.all()
+            return queryset.all()
 
         # For Supervisor: Return only their time ranges
         elif user.groups.filter(name='Supervisor').exists():
-            return TimeRange.objects.filter(panel=user)
+            return queryset.filter(panel=user)
 
-        # Default: Return an empty queryset for users with other roles or no roles
         else:
             return TimeRange.objects.none()
 
     def create(self, request, *args, **kwargs):
-        panel_id = request.data.get('panel_id')
-        try:
-            panel = User.objects.get(id=panel_id)
-        except User.DoesNotExist:
-            return Response({"detail": "Panel user not found."}, status=status.HTTP_404_NOT_FOUND)
+            panel_id = request.data.get('panel_id')
+            panel = get_object_or_404(User, id=panel_id)
+            date = request.data.get('date')
 
-        # Now create the time range
+            time_range, created = TimeRange.objects.get_or_create(panel=panel, date=date)
+            time_slots_data = request.data.get("time_slots")
+
+            # Debug: Log the received time slot IDs
+            print(f"Received time slot IDs: {time_slots_data}")
+
+            time_range.time_slots.clear()
+            for slot_id in time_slots_data:
+                try:
+                    time_slot = SingleTimeSlot.objects.get(id=slot_id)
+                    time_range.time_slots.add(time_slot)
+                except SingleTimeSlot.DoesNotExist:
+                    # Improved error message
+                    return Response(
+                        {"error": f"Time slot with ID {slot_id} does not exist in the database."},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
+            time_range.save()
+            serializer = self.get_serializer(time_range)
+            return Response(serializer.data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+    
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        instance.time_slots.clear()
+        time_slots_data = request.data.get("time_slots")
+
+        for slot_id in time_slots_data:
+            time_slot = SingleTimeSlot.objects.get(id=slot_id)
+            instance.time_slots.add(time_slot)
+
+        instance.save()
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)
+
+    def delete(self, request, *args, **kwargs):
+        date = request.query_params.get('date', None)
+        user = request.user
+
+        if date:
+            # Filter TimeRange instances for the given date and user
+            time_ranges = TimeRange.objects.filter(date=date, panel=user)
+
+            if time_ranges.exists():
+                time_ranges.delete()
+                return Response(status=status.HTTP_204_NO_CONTENT)
+            else:
+                return Response({"error": "No time ranges found for the specified date."}, status=status.HTTP_404_NOT_FOUND)
+        else:
+            # If no date is provided, fallback to default behavior
+            return super(TimeRangeViewSet, self).destroy(request, *args, **kwargs)
+
+class LecturerStudentLimitViewSet(viewsets.ModelViewSet):
+    queryset = LecturerStudentLimit.objects.all()
+    serializer_class = LecturerStudentLimitSerializer
+    permission_classes = [AllowAny]
+
+    def get_queryset(self):
+            queryset = LecturerStudentLimit.objects.all()
+            semester_id = self.request.query_params.get('semester_id', None)
+
+            if semester_id is not None:
+                queryset = queryset.filter(semester_id=semester_id)
+            else:
+                # Default to the latest semester if no semester_id is provided
+                latest_semester = Semester.objects.latest('id')
+                queryset = queryset.filter(semester_id=latest_semester.id)
+            
+            return queryset
+
+    def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        serializer.save(panel=panel)
-
-
+        serializer.save()
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     def update(self, request, *args, **kwargs):
@@ -1479,8 +1561,3 @@ class TimeRangeViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data)
-
-    def destroy(self, request, *args, **kwargs):
-        instance = self.get_object()
-        instance.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
