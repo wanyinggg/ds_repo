@@ -14,20 +14,11 @@ import {
   Modal,
   Typography,
   Divider,
-  List,
-  ListItem,
   IconButton,
   Alert,
   Backdrop,
 } from "@mui/material";
-import {
-  LocalizationProvider,
-  DatePicker,
-} from "@mui/x-date-pickers";
-import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
 import SortIcon from "@mui/icons-material/Sort";
-import AddCircleOutlineIcon from "@mui/icons-material/AddCircleOutline";
-import RemoveCircleOutlineIcon from "@mui/icons-material/RemoveCircleOutline";
 import ScheduleIcon from "@mui/icons-material/Schedule";
 import CloseIcon from "@mui/icons-material/Close";
 import { useEffect, useState } from "react";
@@ -56,6 +47,14 @@ const StyledTableCell = styled(TableCell)(({ theme }) => ({
   },
 }));
 
+function formatDateToYYYYMMDD(date) {
+  const d = new Date(date);
+  const year = d.getFullYear();
+  const month = ("0" + (d.getMonth() + 1)).slice(-2);
+  const day = ("0" + d.getDate()).slice(-2);
+  return `${year}-${month}-${day}`;
+}
+
 export default function PanelPresentation() {
   const [projectPanels, setProjectPanels] = useState({});
   const [projects, setProjects] = useState([]);
@@ -68,25 +67,23 @@ export default function PanelPresentation() {
   const [alertOpen, setAlertOpen] = React.useState(false);
   const [alertMessage, setAlertMessage] = React.useState("");
   const [alertSeverity, setAlertSeverity] = React.useState("success");
-  const [selectedDate, setSelectedDate] = React.useState(new Date());
-  const [semesterInfo, setSemesterInfo] = useState({});
-  const [week15Dates, setWeek15Dates] = useState([]);
-  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(null);
   const [selectedTimeSlots, setSelectedTimeSlots] = useState(() => {
     const savedData = sessionStorage.getItem("selectedTimeSlots");
     return savedData ? JSON.parse(savedData) : {};
   });
   const [currentSelectedDate, setCurrentSelectedDate] = useState(null);
-  const [isRemovalMode, setIsRemovalMode] = useState(false);
-  const [error, setError] = useState("");
   const [deleteAlert, setDeleteAlert] = useState({
     open: false,
     message: "",
     severity: "success",
   });
+  const [availableDatesMap, setAvailableDatesMap] = useState({});
+  const [existingDates, setExistingDates] = useState([]);
 
   const storedUser =
     sessionStorage.getItem("user") || localStorage.getItem("user");
+
   const user = storedUser ? JSON.parse(storedUser) : null;
 
   const columns = [
@@ -273,25 +270,6 @@ export default function PanelPresentation() {
   };
 
   useEffect(() => {
-    api
-      .get("semester/")
-      .then((response) => {
-        const allSemesters = response.data;
-        const latestSemester = allSemesters.find((sem) => sem.is_latest);
-
-        if (latestSemester) {
-          setSemesterInfo(latestSemester);
-          const dates = calculateWeek15Dates(latestSemester.end_date);
-          setWeek15Dates(dates);
-        }
-      })
-      .catch((err) => {
-        console.error("Error fetching semester data:", err);
-        setError("Failed to fetch semester data. Please try again.");
-      });
-  }, []);
-
-  useEffect(() => {
     fetchData();
   }, []);
 
@@ -337,29 +315,47 @@ export default function PanelPresentation() {
   };
 
   const handleSaveAvailability = async () => {
-    const savePromises = Object.entries(selectedTimeSlots).map(
-      async ([date, slotIds]) => {
-        const data = {
-          panel_id: user?.id,
-          date: date,
-          time_slots: slotIds,
-        };
+    const saveOrUpdatePromises = [];
+    const deletePromises = [];
 
-        return slotIds.length > 0
-          ? api.post("/time_range/", data)
-          : api.delete(`/time_range/?date=${date}`); // Delete the entry if no slots selected
+    Object.entries(selectedTimeSlots).forEach(([date, slotIds]) => {
+      if (slotIds.length > 0) {
+        // Save or update slots
+        saveOrUpdatePromises.push(
+          api.post("/time_range/", {
+            panel_id: user?.id,
+            date: date,
+            time_slots: slotIds,
+          })
+        );
+      } else {
+        // Check if the date has been previously fetched and stored and now has no slots selected
+        const wasDateFetchedAndSaved = existingDates.some(
+          (d) => formatDateToYYYYMMDD(d.date) === date
+        );
+        const hasNoSlotsSelected =
+          !selectedTimeSlots[date] || selectedTimeSlots[date].length === 0;
+        if (wasDateFetchedAndSaved && hasNoSlotsSelected) {
+          // Only delete if the date was previously fetched/saved and now has no slots selected
+          deletePromises.push(api.delete(`/time_range/?date=${date}`));
+        }
       }
-    );
+    });
 
     try {
-      await Promise.all(savePromises);
+      await Promise.all([...saveOrUpdatePromises, ...deletePromises]);
       handleAlertOpen(
         "Time slots availability updated successfully!",
         "success"
       );
-      setAvailabilityModalOpen(false);
     } catch (error) {
-      console.error("Error updating time slots:", error.response.data);
+      handleAlertOpen(
+        "Time slots availability updated successfully!",
+        "success"
+      );
+      console.error("Error while updating time slots:", error.response.data);
+    } finally {
+      setAvailabilityModalOpen(false);
     }
   };
 
@@ -411,111 +407,48 @@ export default function PanelPresentation() {
       console.error("Error fetching time ranges:", error);
     }
   };
-  const calculateWeek15Dates = (endDate) => {
-    const end = new Date(endDate);
-    const dates = [];
-
-    // end date is Friday, subtract days to get to Monday
-    for (let i = 4; i >= 0; i--) {
-      let date = new Date(end);
-      date.setDate(date.getDate() - i);
-      dates.push(date);
-    }
-
-    return dates;
-  };
-
-  // Function to toggle removal mode
-  const toggleRemovalMode = () => {
-    setIsRemovalMode(!isRemovalMode);
-  };
 
   const deleteTimeSlotsForDate = async (dateStr) => {
     // Check if the date is already stored in the backend
-    const isDateStored = selectedTimeSlots[dateStr] && selectedTimeSlots[dateStr].length > 0;
-  
+    const isDateStored =
+      selectedTimeSlots[dateStr] && selectedTimeSlots[dateStr].length > 0;
+
     if (isDateStored) {
       try {
         await api.delete(`/time_range/?date=${dateStr}`);
         // Update the state after successful deletion from the backend
-        updateDateDeletionState(dateStr);
         handleAlertOpen("Time slots deleted successfully!", "success");
       } catch (error) {
-        console.error(`Error deleting time slots for ${dateStr}:`, error.response.data);
+        console.error(
+          `Error deleting time slots for ${dateStr}:`,
+          error.response.data
+        );
         handleAlertOpen("Failed to delete time slots.", "error");
       }
-    } else {
-        updateDateDeletionState(dateStr);
-    
     }
-  };
-  
-  const updateDateDeletionState = (dateStr) => {
-    setWeek15Dates(week15Dates.filter((date) => date.toISOString().split("T")[0] !== dateStr));
-    setSelectedTimeSlots((prevSlots) => {
-      const newSlots = { ...prevSlots };
-      delete newSlots[dateStr];
-      return newSlots;
-    });
   };
 
   const handleDateSelection = (date) => {
     const dateStr = date.toISOString().split("T")[0];
-    console.log(`Date selected: ${dateStr}, Removal mode: ${isRemovalMode}`);
 
-    if (isRemovalMode) {
-      console.log(`Removing date: ${dateStr}`);
-      setWeek15Dates(
-        week15Dates.filter((d) => d.toISOString().split("T")[0] !== dateStr)
-      );
-      deleteTimeSlotsForDate(dateStr);
-    } else {
-      if (currentSelectedDate !== dateStr) {
-        setSelectedDate(date);
-        setCurrentSelectedDate(dateStr);
+    if (currentSelectedDate !== dateStr) {
+      setSelectedDate(date);
+      setCurrentSelectedDate(dateStr);
 
-        console.log(`Selected Date: ${dateStr}`);
-        console.log("Current Selected Date: ", currentSelectedDate);
-        console.log("Selected Time Slots: ", selectedTimeSlots);
+      console.log(`Selected Date: ${dateStr}`);
+      console.log("Current Selected Date: ", currentSelectedDate);
+      console.log("Selected Time Slots: ", selectedTimeSlots);
 
-        // Fetch time slots for the new date only if they are not already present
-        if (!selectedTimeSlots[dateStr]) {
-          fetchTimeSlotsForDate(date);
-        }
-      } else {
-        console.log(`Deselecting date: ${dateStr}`);
-        setCurrentSelectedDate(null);
-        setSelectedDate(null);
+      // Fetch time slots for the new date only if they are not already present
+      if (!selectedTimeSlots[dateStr]) {
+        fetchTimeSlotsForDate(date);
       }
+    } else {
+      console.log(`Deselecting date: ${dateStr}`);
+      setCurrentSelectedDate(null);
+      setSelectedDate(null);
     }
   };
-
-  // Function to handle opening the date picker modal
-  const handleOpenDatePicker = () => {
-    setIsDatePickerOpen(true);
-  };
-
-  // Function to handle closing the date picker modal
-  const handleCloseDatePicker = () => {
-    setIsDatePickerOpen(false);
-  };
-
-  // Function to handle adding a new date
-const handleAddDate = () => {
-  const newDateStr = selectedDate.toISOString().split("T")[0];
-  const existingDates = week15Dates.map(date =>
-    date.toISOString().split("T")[0]
-  );
-
-  if (existingDates.includes(newDateStr)) {
-    handleCloseDatePicker();
-    handleAlertOpen("This date is already selected. Please choose another date.", "error");
-  } else {
-    setWeek15Dates([...week15Dates, selectedDate]);
-    handleCloseDatePicker();
-  }
-};
-
 
   const timeSlots = [
     { id: "1", label: "9am-11am" },
@@ -587,6 +520,36 @@ const handleAddDate = () => {
     if (savedDate) {
       setCurrentSelectedDate(savedDate);
     }
+  }, []);
+
+  const fetchAvailableDates = async () => {
+    try {
+      const response = await api.get("/available_dates/");
+      console.log("response", response);
+      const fetchedDates = response.data.map((dateObj) => ({
+        id: dateObj.id,
+        date: new Date(dateObj.date),
+      }));
+      console.log("fetched data", fetchedDates);
+      setAvailableDatesMap(
+        fetchedDates.reduce((acc, current) => {
+          acc[formatDateToYYYYMMDD(current.date)] = true;
+          return acc;
+        }, {})
+      );
+      setExistingDates(
+        fetchedDates.map((d) => ({
+          id: d.id,
+          date: formatDateToYYYYMMDD(d.date),
+        }))
+      );
+    } catch (error) {
+      console.error("Error fetching available dates:", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchAvailableDates();
   }, []);
 
   return (
@@ -816,109 +779,37 @@ const handleAddDate = () => {
               <Box
                 sx={{ display: "flex", gap: 2, flexWrap: "wrap", marginTop: 2 }}
               >
-                {week15Dates.map((date, index) => {
-                  const day = date.toLocaleDateString("en-US", {
-                    weekday: "long",
-                  });
-                  const dateStr = date.toISOString().split("T")[0];
-                  const isSelected = currentSelectedDate === dateStr;
-                  return (
-                    <Button
-                      key={index}
-                      variant={
-                        isRemovalMode
-                          ? "outlined"
-                          : isSelected
-                          ? "contained"
-                          : "outlined"
-                      }
-                      color="primary"
-                      onClick={() => handleDateSelection(date)}
-                      endIcon={
-                        isRemovalMode && <CloseIcon sx={{ color: "red" }} />
-                      }
-                    >
-                      {`${date.toLocaleDateString()} (${day})`}
-                    </Button>
-                  );
-                })}
-              </Box>
-              {/* Calendar Icon and Text for adding new date */}
-              <Box
-                sx={{ display: "flex", alignItems: "center", gap: 1, mt: 2 }}
-              >
-                <Button
-                  variant="text"
-                  color="primary"
-                  onClick={handleOpenDatePicker}
-                  startIcon={<AddCircleOutlineIcon />}
-                >
-                  add date
-                </Button>
-                <Button
-                  variant="text"
-                  color="primary"
-                  onClick={toggleRemovalMode}
-                  startIcon={<RemoveCircleOutlineIcon />}
-                >
-                  {isRemovalMode ? "Done Removal" : "Remove Date"}
-                </Button>
-              </Box>
+                {Array.isArray(existingDates) &&
+                  existingDates
+                    .sort((a, b) => new Date(a.date) - new Date(b.date))
+                    .map((dateObj, index) => {
+                      const date = new Date(dateObj.date);
+                      const day = date.toLocaleDateString("en-US", {
+                        weekday: "short",
+                      });
+                      const dateStr = formatDateToYYYYMMDD(date);
+                      const isSelected = currentSelectedDate === dateStr;
 
-              {/* Modal for Date Picker */}
-              <Modal open={isDatePickerOpen} onClose={handleCloseDatePicker}>
-                <Box
-                  sx={{
-                    position: "absolute",
-                    top: "50%",
-                    left: "50%",
-                    transform: "translate(-50%, -50%)",
-                    bgcolor: "background.paper",
-                    boxShadow: 24,
-                    p: 4,
-                  }}
-                >
-                  <LocalizationProvider dateAdapter={AdapterDateFns}>
-                    <DatePicker
-                      renderInput={(props) => <TextField {...props} />}
-                      label="Select Date"
-                      value={selectedDate}
-                      onChange={(newValue) => setSelectedDate(newValue)}
-                      slotProps={{
-                        textField: ({}) => ({
-                          color: "secondary",
-                        }),
-                        day: {
-                          sx: {
-                            "&.MuiPickersDay-root.Mui-selected": {
-                              backgroundColor: "#8950fc",
-                            },
-                          },
-                        },
-                        actionBar: {
-                          sx: {
-                            ".MuiButton-root.MuiButton-text.MuiButton-textPrimary":
-                              {
-                                color: "#8950fc !important",
-                              },
-                          },
-                        },
-                      }}
-                    />
-                  </LocalizationProvider>
-                  <Box
-                    sx={{ mt: 2, display: "flex", justifyContent: "flex-end" }}
-                  >
-                    <Button
-                      variant="contained"
-                      color="primary"
-                      onClick={handleAddDate}
-                    >
-                      Add
-                    </Button>
-                  </Box>
-                </Box>
-              </Modal>
+                      return (
+                        <Button
+                          key={index}
+                          variant={isSelected ? "contained" : "outlined"}
+                          sx={{
+                            color: isSelected ? "white" : "black",
+                            backgroundColor: isSelected
+                              ? theme.palette.primary.main
+                              : "transparent",
+                            borderColor: isSelected
+                              ? theme.palette.primary.main
+                              : "black",
+                          }}
+                          onClick={() => handleDateSelection(date)}
+                        >
+                          {`${dateStr} (${day})`}
+                        </Button>
+                      );
+                    })}
+              </Box>
             </Box>
           </Grid>
 
@@ -928,6 +819,9 @@ const handleAddDate = () => {
             <>
               <Typography variant="h6" sx={{ mb: 2 }}>
                 Available Time Slots for {selectedDate.toLocaleDateString()}:
+                <Typography variant="body2" color="textSecondary">
+                  (You can select multiple time slots)
+                </Typography>
               </Typography>
 
               <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
@@ -939,7 +833,10 @@ const handleAddDate = () => {
                     <Button
                       key={slot.id}
                       variant={isSelected ? "contained" : "outlined"}
-                      color="primary"
+                      sx={{
+                        color: isSelected ? "white" : "black",
+                        borderColor: isSelected ? "white" : "black",
+                      }}
                       onClick={() => handleTimeSlotSelection(slot.id)}
                     >
                       {slot.label}
@@ -987,7 +884,7 @@ const handleAddDate = () => {
                 boxShadow: 3,
                 width: "auto",
                 maxWidth: "90%",
-                zIndex: (theme) => theme.zIndex.tooltip + 1
+                zIndex: (theme) => theme.zIndex.tooltip + 1,
               }}
             >
               {deleteAlert.message}
@@ -996,7 +893,7 @@ const handleAddDate = () => {
         </Box>
       </Modal>
       <Backdrop
-        sx={{ color: "#fff", zIndex: (theme) => theme.zIndex.modal + 1  }}
+        sx={{ color: "#fff", zIndex: (theme) => theme.zIndex.modal + 1 }}
         open={alertOpen}
       >
         <Alert
@@ -1007,7 +904,7 @@ const handleAddDate = () => {
             p: 2,
             minWidth: "20%",
             display: "flex",
-            zIndex: 999999 
+            zIndex: 999999,
           }}
         >
           {alertMessage}

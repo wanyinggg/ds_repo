@@ -48,8 +48,6 @@ function SupervisorNavigationBar(props) {
   ];
 
   const settings = [
-    "Switch to Panel",
-    ...(isProgramCoordinator ? ["Switch to Program Coordinator"] : []),
     "Profile",
     "Reset Password",
     "Logout",
@@ -116,28 +114,6 @@ function SupervisorNavigationBar(props) {
   const isReportEvaluation = location.pathname.startsWith("/report_evaluation");
   const isConductEvaluation = location.pathname.startsWith("/conduct_evaluation");
 
-  const pageTitle =
-    pages.find((page) => page.path === location.pathname)?.label ||
-    (isProjectDetail
-      ? "Project Details"
-      : isSupervisorProjectTemplate
-      ? "Add Project"
-      : isProposalDetail
-      ? "Proposal Details"
-      : isResetPassword
-      ? "Reset Password"
-      : isProfile
-      ? "Profile"
-      : isProposalEvaluation
-      ? "Proposal (10%)"
-      : isReportEvaluation
-      ? "Report (40%)"
-      : isConductEvaluation
-      ? "Supervisee Conduct (10%)"
-      : "");
-
-  const shouldShowPageName = location.pathname !== "/supervisor";
-
   const handleNavigation = (path) => {
     navigate(path);
     sessionStorage.removeItem("selectedOption");
@@ -166,7 +142,6 @@ function SupervisorNavigationBar(props) {
             marginLeft: "1.875rem", 
           }}
         >
-          {showToggleButtonGroup && (
             <ToggleButtonGroup
               value={userRole}
               exclusive
@@ -236,30 +211,7 @@ function SupervisorNavigationBar(props) {
                 </ToggleButton>
               )}
             </ToggleButtonGroup>
-          )}
         </Box>
-        {shouldShowPageName && (
-          <Box
-          sx={{
-            position: "absolute",
-            top: "10.5rem", 
-            left: "0",
-            padding: "0.5rem",
-            marginLeft: "1.875rem", 
-          }}
-          >
-            <Typography
-              variant="h5"
-              sx={{
-                color: "white",
-                letterSpacing: "0.1em",
-                margin: "0",
-              }}
-            >
-              {pageTitle}
-            </Typography>
-          </Box>
-        )}
         <Container maxWidth="l">
           <Toolbar disableGutters>
             <Logo
@@ -396,10 +348,6 @@ function SupervisorNavigationBar(props) {
                         handleLogout();
                       } else if (setting === "Reset Password") {
                         navigate(`/resetcurrentpassword?role=${userRole}`);
-                      } else if (setting === "Switch to Panel") {
-                        handleRoleChange(null, "panel");
-                      } else if (setting === "Switch to Program Coordinator") {
-                        handleRoleChange(null, "programcoordinator");
                       } else {
                         handleCloseUserMenu();
                       }

@@ -31,7 +31,7 @@ const pages = [
   { label: "Dashboard", path: "/dashboard" },
 ];
 
-const settings = ["Switch to Supervisor", "Switch to Panel","Profile", "Reset Password", "Logout"];
+const settings = ["Profile", "Reset Password", "Logout"];
 
 function CoordinatorNavigationBar() {
   const [anchorElNav, setAnchorElNav] = React.useState(null);
@@ -90,21 +90,6 @@ function CoordinatorNavigationBar() {
     marginRight: "8px",
   });
 
-  const showToggleButtonGroup = location.pathname === "/programcoordinator";
-
-  const getPageName = () => {
-    if (location.pathname === "/profile") {
-      return "Profile";
-    } else if (location.pathname .startsWith("/resetcurrentpassword")) {
-      return "Reset Password";
-    }
-
-    const currentPage = pages.find((page) => page.path === location.pathname);
-    return currentPage ? currentPage.label : "";
-  };
-
-  const shouldShowPageName = location.pathname !== "/programcoordinator";
-
   return (
     <ThemeProvider theme={Theme}>
       <AppBar
@@ -128,7 +113,6 @@ function CoordinatorNavigationBar() {
             marginLeft: "1.875rem", 
           }}
         >
-          {showToggleButtonGroup && (
             <ToggleButtonGroup
               value={userRole}
               exclusive
@@ -196,19 +180,6 @@ function CoordinatorNavigationBar() {
                 Program Coordinator
               </ToggleButton>
             </ToggleButtonGroup>
-          )}
-          {shouldShowPageName && (
-            <Typography
-              variant="h5"
-              sx={{
-                color: "white",
-                letterSpacing: "0.1em",
-                margin: "0",
-              }}
-            >
-              {getPageName()}
-            </Typography>
-          )}
         </Box>
         <Container maxWidth="l">
           <Toolbar disableGutters>
@@ -345,10 +316,6 @@ function CoordinatorNavigationBar() {
                         handleLogout();
                       } else if (setting === "Reset Password") {
                         navigate(`/resetcurrentpassword?role=${userRole}`);
-                      }  else if (setting === "Switch to Supervisor") {
-                        handleRoleChange(null, "supervisor");
-                      } else if (setting === "Switch to Panel") {
-                        handleRoleChange(null, "panel");
                       } else {
                         handleCloseUserMenu();
                       }

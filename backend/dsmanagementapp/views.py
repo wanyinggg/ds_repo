@@ -308,7 +308,7 @@ class PasswordResetView(GenericAPIView):
 
     def reset_password_request(self, request):
         email = request.data.get('email')
-        # Check if email exists in your user model
+        # Check if email exists in user model
         try:
             user = User.objects.get(email=email)
         except User.DoesNotExist:
@@ -1407,6 +1407,7 @@ class SemesterViewSet(viewsets.ModelViewSet):
              # Delete all notifications
             Notification.objects.all().delete()
             TimeRange.objects.all().delete()
+            AvailableDate.objects.all().delete()
             serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -1418,6 +1419,7 @@ class SemesterViewSet(viewsets.ModelViewSet):
         if serializer.is_valid():
             Notification.objects.all().delete()
             TimeRange.objects.all().delete()
+            AvailableDate.objects.all().delete()
             serializer.save()
             return Response(serializer.data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -1561,3 +1563,19 @@ class LecturerStudentLimitViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data)
+
+class AvailableDateViewSet(viewsets.ModelViewSet):
+    queryset = AvailableDate.objects.all()
+    serializer_class = AvailableDateSerializer
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        self.perform_destroy(instance)
+        return Response(status=status.HTTP_204_NO_CONTENT)

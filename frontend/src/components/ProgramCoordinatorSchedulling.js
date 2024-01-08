@@ -23,9 +23,14 @@ import {
   ListItemText,
   List,
   IconButton,
+  Modal,
+  Divider,
+  Chip,
 } from "@mui/material";
 import SortIcon from "@mui/icons-material/Sort";
 import CloseIcon from "@mui/icons-material/Close";
+import ScheduleIcon from "@mui/icons-material/Schedule";
+import AddCircleOutlineIcon from "@mui/icons-material/AddCircleOutline";
 import { useEffect, useState } from "react";
 import CoordinatorNavigationBar from "./reusable/CoordinatorNavigationBar";
 import { tableCellClasses } from "@mui/material/TableCell";
@@ -34,12 +39,14 @@ import api from "./axios";
 import CircularProgress from "@mui/material/CircularProgress";
 import Calendar from "react-calendar";
 import "react-calendar/dist/Calendar.css";
+import { LocalizationProvider, DatePicker } from "@mui/x-date-pickers";
+import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
 
 function formatDateToYYYYMMDD(date) {
   const d = new Date(date);
   const year = d.getFullYear();
-  const month = ('0' + (d.getMonth() + 1)).slice(-2);
-  const day = ('0' + d.getDate()).slice(-2);
+  const month = ("0" + (d.getMonth() + 1)).slice(-2);
+  const day = ("0" + d.getDate()).slice(-2);
   return `${year}-${month}-${day}`;
 }
 
@@ -50,30 +57,30 @@ function MyCalendarComponent({
 }) {
   // Highlight available dates
   function tileContent({ date, view }) {
-    if (view === 'month') {
+    if (view === "month") {
       const dateString = formatDateToYYYYMMDD(date); // Use the new function
       if (availableDatesMap[dateString]) {
         // Highlight the date
         return (
-          <div style={{
-            backgroundColor: "#D6EAF8",
-            borderRadius: "50%",
-            color: "#21618C",
-            width: "100%",
-            height: "100%",
-          }}></div>
+          <div
+            style={{
+              backgroundColor: "#D6EAF8",
+              borderRadius: "50%",
+              color: "#21618C",
+              width: "100%",
+              height: "100%",
+            }}
+          ></div>
         );
       }
     }
     return null;
   }
-  
-  
 
   // Disable unavailable dates
   function tileDisabled({ date, view }) {
     const dateString = formatDateToYYYYMMDD(date);
-    if (view === 'month') {
+    if (view === "month") {
       // Disable dates that are not in the availableDatesMap
       return !availableDatesMap[dateString];
     }
@@ -108,7 +115,7 @@ const theme = createTheme({
 });
 
 const StyledTableCell = styled(TableCell)(({ theme }) => ({
-  [`&.${tableCellClasses.head}`]: { 
+  [`&.${tableCellClasses.head}`]: {
     backgroundColor: theme.palette.primary.light,
     color: "white",
   },
@@ -153,10 +160,24 @@ export default function ProgramCoordinatorSchedulling() {
     useState(new Map());
   const [customDate, setCustomDate] = useState(null);
   const [customTime, setCustomTime] = useState(null);
-  const [selectedDatesWithRecommendedSlotsMap, setSelectedDatesWithRecommendedSlotsMap] = useState(new Map());
+  const [
+    selectedDatesWithRecommendedSlotsMap,
+    setSelectedDatesWithRecommendedSlotsMap,
+  ] = useState(new Map());
   const [panelTimeSlots, setPanelTimeSlots] = useState([]);
-  const [overlappingSlotsForSelectedProject, setOverlappingSlotsForSelectedProject] = useState({});
+  const [
+    overlappingSlotsForSelectedProject,
+    setOverlappingSlotsForSelectedProject,
+  ] = useState({});
   const [availableDatesMap, setAvailableDatesMap] = useState({});
+  const [dateModalOpen, setDateModalOpen] = useState(false);
+  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
+  const [deleteAlert, setDeleteAlert] = useState({
+    open: false,
+    message: "",
+    severity: "success",
+  });
+  const [existingDates, setExistingDates] = useState([]);
 
   const storedUser =
     sessionStorage.getItem("user") || localStorage.getItem("user");
@@ -292,24 +313,33 @@ export default function ProgramCoordinatorSchedulling() {
     // Fetch the panels
     api.get("student_project_panel/?role=coordinator").then((response) => {
       console.log("Raw API response for panels:", response.data);
-    
+
       const panelsData = response.data.reduce((acc, item) => {
         console.log("Current item:", item); // Debugging
-      
-        if (!item.project || !item.project.id || !item.student || !item.student.id) {
+
+        if (
+          !item.project ||
+          !item.project.id ||
+          !item.student ||
+          !item.student.id
+        ) {
           console.warn("Invalid item encountered", item);
           return acc; // Skip this iteration if data is invalid
         }
-      
+
         if (!acc[item.project.id]) {
           acc[item.project.id] = {};
         }
-      
+
         // Check if this student already exists for the project
         if (acc[item.project.id][item.student.id]) {
-          console.warn("Overwriting data for", item.project.id, item.student.id);
+          console.warn(
+            "Overwriting data for",
+            item.project.id,
+            item.student.id
+          );
         }
-      
+
         acc[item.project.id][item.student.id] = {
           panels: item.panels,
           assignmentId: item.id,
@@ -317,13 +347,12 @@ export default function ProgramCoordinatorSchedulling() {
 
         return acc;
       }, {});
-      
-  // Log the processed panelsData
-  console.log("Final panels data:", panelsData);
 
-  setProjectPanels(panelsData);
-});
+      // Log the processed panelsData
+      console.log("Final panels data:", panelsData);
 
+      setProjectPanels(panelsData);
+    });
 
     // Fetch presentation schedules
     api.get("/presentation-schedule/").then((response) => {
@@ -408,61 +437,21 @@ export default function ProgramCoordinatorSchedulling() {
     fetchSupervisors();
   }, []);
 
-  const convertDurationToMinutes = (duration) => {
-    const [hours, minutes] = duration.split(":").map(Number);
-    return hours * 60 + minutes;
-  };
-
-  // const handleOpenArrangeDialog = (project) => {
-  //   console.log("Selected project:", project);
-  //   setSelectedProjectId(project.id);
-  //   setSelectedStudent(project.student);
-  //   console.log("Selected project:", selectedProjectId);
-  //   console.log("Selected student:", selectedStudent);
-  //   console.log('PanelTimeSlots',panelTimeSlots)
-
-  //   // Find the schedule for this project and student
-  //   const existingSchedule = presentationSchedules.find(
-  //     (s) => s.project.id === project.id && s.student.id === project.student.id
-  //   );
-
-  //   // If a schedule exists, set the state values based on the existing schedule
-  //   if (existingSchedule) {
-  //     setSelectedDate(new Date(existingSchedule.date));
-
-  //     // Manually parse the hours and minutes
-  //     const [hours, minutes] = existingSchedule.start_time.split(":");
-  //     const newTime = new Date();
-  //     newTime.setHours(parseInt(hours, 10));
-  //     newTime.setMinutes(parseInt(minutes, 10));
-  //     setSelectedTime(newTime);
-
-  //     setDuration(convertDurationToMinutes(existingSchedule.duration));
-  //   } else {
-  //     // Reset to default values if no existing schedule
-  //     setSelectedDate(new Date());
-  //     setSelectedTime(new Date());
-  //     setDuration(15);
-  //   }
-
-  //   // Generate the map for the selected project and student
-  //   const newMap = generateDatesWithRecommendedSlotsMap(project.id, project.student.id);
-  //   setSelectedDatesWithRecommendedSlotsMap(newMap);
-  //   setOpenDialog(true);
-  // };
-
   const handleOpenArrangeDialog = (project) => {
     setSelectedProjectId(project.id);
     setSelectedStudent(project.student);
     handleProjectSelection(project.id);
-  
+
     // Retrieve panel IDs associated with the selected project
-    const projectPanelData = projectPanels[project.id] && projectPanels[project.id][project.student.id];
-    const panelIds = projectPanelData ? projectPanelData.panels.map(panel => panel.id) : [];
-  
+    const projectPanelData =
+      projectPanels[project.id] &&
+      projectPanels[project.id][project.student.id];
+    const panelIds = projectPanelData
+      ? projectPanelData.panels.map((panel) => panel.id)
+      : [];
+
     setOpenDialog(true);
   };
-  
 
   const extractHourAndMinute = (timeString) => {
     const dateObj = new Date(`1970-01-01T${timeString}Z`); // Using a dummy date to parse the time
@@ -531,17 +520,16 @@ export default function ProgramCoordinatorSchedulling() {
     document.body.removeChild(link);
   }
 
-
   useEffect(() => {
     const fetchPanelTimeSlots = async () => {
       try {
         const response = await api.get("/time_range/?role=coordinator");
         setPanelTimeSlots(response.data);
       } catch (error) {
-        console.error('Error fetching panel time slots:', error);
+        console.error("Error fetching panel time slots:", error);
       }
     };
-  
+
     fetchPanelTimeSlots();
   }, []);
 
@@ -551,27 +539,28 @@ export default function ProgramCoordinatorSchedulling() {
     endTime.setMinutes(startTime.getMinutes() + duration); // Assuming duration is 15 minutes
 
     return presentationSchedules.some((schedule) => {
-        const scheduleStartTime = new Date(schedule.date + "T" + schedule.start_time);
-        const scheduleEndTime = new Date(schedule.date + "T" + schedule.end_time);
+      const scheduleStartTime = new Date(
+        schedule.date + "T" + schedule.start_time
+      );
+      const scheduleEndTime = new Date(schedule.date + "T" + schedule.end_time);
 
-        // Check for any overlap
-        return (startTime < scheduleEndTime && endTime > scheduleStartTime);
+      // Check for any overlap
+      return startTime < scheduleEndTime && endTime > scheduleStartTime;
     });
-};
-
+  };
 
   const handleTimeslotSelection = (timeslot) => {
     const [hours, minutes] = timeslot.split(":").map(Number);
     const startTime = new Date(selectedDate);
     startTime.setHours(hours, minutes, 0, 0);
-  
+
     const endTime = new Date(startTime);
     endTime.setMinutes(startTime.getMinutes() + 15);
 
     // Reset custom date and time when an available timeslot is selected
     setCustomDate(null);
     setCustomTime(null);
-  
+
     // Check if the clicked timeslot is already selected
     if (selectedTime && selectedTime.formattedStartTime === timeslot) {
       // If already selected, deselect it
@@ -587,233 +576,332 @@ export default function ProgramCoordinatorSchedulling() {
       });
     }
   };
-  
 
-const handleTimeslotConfirmation = async () => {
+  const handleTimeslotConfirmation = async () => {
     setLoading(true);
 
     // Use custom date and time if provided, else use the selected values
-    const scheduledDate = customDate || selectedDate.toISOString().split("T")[0];
+    const scheduledDate =
+      customDate || selectedDate.toISOString().split("T")[0];
     const scheduledTime = customTime || selectedTime.formattedStartTime;
 
     const currentPanelsData =
-        projectPanels[selectedProjectId] &&
-        projectPanels[selectedProjectId][selectedStudent.id];
+      projectPanels[selectedProjectId] &&
+      projectPanels[selectedProjectId][selectedStudent.id];
     const panelIds = currentPanelsData
-        ? currentPanelsData.panels.map((panel) => panel.id)
-        : [];
+      ? currentPanelsData.panels.map((panel) => panel.id)
+      : [];
 
     const postData = {
-        student_id: selectedStudent.id,
-        project_id: selectedProjectId,
-        programCoordinator_id: programCoordinatorId,
-        date: scheduledDate,
-        start_time: scheduledTime,
-        duration: "00:15:00", //fixed 15 minutes duration
-        panels_id: panelIds,
+      student_id: selectedStudent.id,
+      project_id: selectedProjectId,
+      programCoordinator_id: programCoordinatorId,
+      date: scheduledDate,
+      start_time: scheduledTime,
+      duration: "00:15:00", //fixed 15 minutes duration
+      panels_id: panelIds,
     };
 
     try {
-        let response;
-        const existingSchedule = presentationSchedules.find(
-            (s) =>
-                s.project.id === selectedProjectId &&
-                s.student.id === selectedStudent.id
+      let response;
+      const existingSchedule = presentationSchedules.find(
+        (s) =>
+          s.project.id === selectedProjectId &&
+          s.student.id === selectedStudent.id
+      );
+
+      if (existingSchedule) {
+        response = await api.patch(
+          `/presentation-schedule/${existingSchedule.id}/`,
+          postData
         );
+      } else {
+        response = await api.post("/presentation-schedule/", postData);
+      }
 
-        if (existingSchedule) {
-            response = await api.patch(
-                `/presentation-schedule/${existingSchedule.id}/`,
-                postData
-            );
-        } else {
-            response = await api.post("/presentation-schedule/", postData);
-        }
+      console.log("Schedule updated/created:", response.data);
+      handleAlertOpen("Presentation schedule updated successfully!", "success");
+      fetchData(); // Refresh data after update
 
-        console.log("Schedule updated/created:", response.data);
-        handleAlertOpen("Presentation schedule updated successfully!", "success");
-        fetchData(); // Refresh data after update
-
-        // Clear custom date and time after successful update
-        setCustomDate(null);
-        setCustomTime(null);
+      // Clear custom date and time after successful update
+      setCustomDate(null);
+      setCustomTime(null);
     } catch (error) {
-        console.error("Error updating/creating schedule:", error.response.data);
-        handleAlertOpen(
-            "Error updating/creating schedule. Please try again.",
-            "error"
-        );
+      console.error("Error updating/creating schedule:", error.response.data);
+      handleAlertOpen(
+        "Error updating/creating schedule. Please try again.",
+        "error"
+      );
     } finally {
-        setLoading(false);
-        handleCloseDialog();
+      setLoading(false);
+      handleCloseDialog();
     }
-};
+  };
 
-
-const handleDateChange = (newDate) => {
-  const utcDate = new Date(
-    Date.UTC(newDate.getFullYear(), newDate.getMonth(), newDate.getDate())
-  );
-  setSelectedDate(utcDate);
-  console.log("Selected UTC date:", utcDate);
-
-  // Update the state with recommended slots for the selected date
-  const newRecommendedSlots = generateRecommendedTimeslots(newDate);
-  setRecommendedSlots(newRecommendedSlots);
-
-  // Use the state callback function to ensure the most up-to-date state
-  setSelectedDatesWithRecommendedSlotsMap((prevMap) => {
-    // Fetch data and update the state based on the previous state
-    const newMap = generateDatesWithRecommendedSlotsMap(
-      selectedProjectId,
-      selectedStudent.id
+  const handleDateChange = (newDate) => {
+    const utcDate = new Date(
+      Date.UTC(newDate.getFullYear(), newDate.getMonth(), newDate.getDate())
     );
+    setSelectedDate(utcDate);
+    console.log("Selected UTC date:", utcDate);
+
+    // Update the state with recommended slots for the selected date
+    const newRecommendedSlots = generateRecommendedTimeslots(newDate);
+    setRecommendedSlots(newRecommendedSlots);
+
+    // Use the state callback function to ensure the most up-to-date state
+    setSelectedDatesWithRecommendedSlotsMap((prevMap) => {
+      // Fetch data and update the state based on the previous state
+      const newMap = generateDatesWithRecommendedSlotsMap(
+        selectedProjectId,
+        selectedStudent.id
+      );
+      return newMap;
+    });
+  };
+
+  const generateRecommendedTimeslots = (date) => {
+    const dateString = date.toISOString().split("T")[0];
+    const panelData = projectPanels[selectedProjectId]?.[selectedStudent.id];
+
+    if (!panelData || panelData.panels.length === 0) {
+      console.error("No panels assigned for the selected student");
+      return [];
+    }
+
+    const overlappingSlots = overlappingSlotsForSelectedProject[dateString];
+    if (!overlappingSlots) {
+      return [];
+    }
+
+    let detailedTimeSlots = [];
+    overlappingSlots.forEach((baseSlot) => {
+      const baseSlots = generatePresentationSlots(baseSlot);
+      detailedTimeSlots = detailedTimeSlots.concat(baseSlots);
+    });
+
+    // Filter out booked slots
+    return detailedTimeSlots.filter(
+      (slot) => !isTimeslotBooked(new Date(`${dateString}T${slot}`))
+    );
+  };
+
+  const generateDatesWithRecommendedSlotsMap = (projectId, studentId) => {
+    let newMap = new Map();
+    const panelData = projectPanels[projectId]?.[studentId];
+
+    if (panelData && panelData.panels.length > 0) {
+      availability.forEach((item) => {
+        const date = new Date(item.date);
+        const recommendedSlots = generateRecommendedTimeslots(
+          date,
+          panelData.panels
+        );
+        console.log("Recommended time slots:", recommendedSlots);
+        if (recommendedSlots.length > 0) {
+          newMap.set(date.toDateString(), true);
+        }
+      });
+    }
     return newMap;
-  });
-};
+  };
 
-const generateRecommendedTimeslots = (date) => {
-  const dateString = date.toISOString().split("T")[0];
-  const panelData = projectPanels[selectedProjectId]?.[selectedStudent.id];
-    
-  if (!panelData || panelData.panels.length === 0) {
-    console.error("No panels assigned for the selected student");
-    return [];
-  }
+  useEffect(() => {
+    if (selectedProjectId !== null && selectedStudent !== null) {
+      // Fetch the data and update the selectedDatesWithRecommendedSlotsMap
+      const newMap = generateDatesWithRecommendedSlotsMap(
+        selectedProjectId,
+        selectedStudent.id
+      );
+      setSelectedDatesWithRecommendedSlotsMap(newMap);
+      // Fetch other necessary data here if needed
+    }
+  }, [selectedProjectId, selectedStudent]);
 
-  const overlappingSlots = overlappingSlotsForSelectedProject[dateString];
-  if (!overlappingSlots) {
-    return [];
-  }
+  function getOverlappingSlotsForProject(
+    projectId,
+    panelTimeSlots,
+    projectPanels
+  ) {
+    const overlappingSlots = {};
 
-  let detailedTimeSlots = [];
-  overlappingSlots.forEach(baseSlot => {
-    const baseSlots = generatePresentationSlots(baseSlot);
-    detailedTimeSlots = detailedTimeSlots.concat(baseSlots);
-  });
+    const panelData = projectPanels[projectId];
+    if (!panelData) {
+      console.error("No panel data found for project:", projectId);
+      return overlappingSlots;
+    }
 
-  // Filter out booked slots
-  return detailedTimeSlots.filter(slot => !isTimeslotBooked(new Date(`${dateString}T${slot}`)));
-};
+    // Extracting all panel IDs for the project
+    const allPanelIds = Object.values(panelData).flatMap((data) =>
+      data.panels.map((panel) => panel.id)
+    );
 
-const generateDatesWithRecommendedSlotsMap = (projectId, studentId) => {
-  let newMap = new Map();
-  const panelData = projectPanels[projectId]?.[studentId];
-
-  if (panelData && panelData.panels.length > 0) {
-    availability.forEach((item) => {
-      const date = new Date(item.date);
-      const recommendedSlots = generateRecommendedTimeslots(date, panelData.panels);
-      console.log("Recommended time slots:", recommendedSlots);
-      if (recommendedSlots.length > 0) {
-        newMap.set(date.toDateString(), true);
+    // Grouping panelTimeSlots by date
+    const slotsByDate = {};
+    panelTimeSlots.forEach((slot) => {
+      if (allPanelIds.includes(slot.panel.id)) {
+        if (!slotsByDate[slot.date]) {
+          slotsByDate[slot.date] = [];
+        }
+        slotsByDate[slot.date].push(slot);
       }
     });
-  }
-  return newMap;
-};
 
-useEffect(() => {
-  if (selectedProjectId !== null && selectedStudent !== null) {
-    // Fetch the data and update the selectedDatesWithRecommendedSlotsMap
-    const newMap = generateDatesWithRecommendedSlotsMap(selectedProjectId, selectedStudent.id);
-    setSelectedDatesWithRecommendedSlotsMap(newMap);
-    // Fetch other necessary data here if needed
-  }
-}, [selectedProjectId, selectedStudent]);
+    // Finding overlapping slots for each date
+    Object.keys(slotsByDate).forEach((date) => {
+      const slotsForDate = slotsByDate[date];
 
- // Function to generate timeslots for a given date
- const generateTimeslotsForDate = (date) => {
-  const startHours = [9, 11, 14, 16]; // Start hours for each time slot
-  const timeslots = [];
+      if (slotsForDate.length === allPanelIds.length) {
+        // Only proceed if all panels have slots on this date
+        let commonSlots = slotsForDate[0].time_slots;
 
-  startHours.forEach(hour => {
-    for (let i = 0; i < 4; i++) { // 4 slots of 15 minutes each
-      const time = new Date(date);
-      time.setHours(hour, i * 15, 0, 0);
-      timeslots.push(time);
-    }
-  });
+        slotsForDate.forEach((slot) => {
+          commonSlots = commonSlots.filter((time) =>
+            slot.time_slots.includes(time)
+          );
+        });
 
-  return timeslots;
-};
+        if (commonSlots.length > 0) {
+          overlappingSlots[date] = commonSlots;
+        }
+      }
+    });
 
-function getOverlappingSlotsForProject(projectId, panelTimeSlots, projectPanels) {
-  const overlappingSlots = {};
-
-  const panelData = projectPanels[projectId];
-  if (!panelData) {
-    console.error("No panel data found for project:", projectId);
     return overlappingSlots;
   }
 
-  // Extracting all panel IDs for the project
-  const allPanelIds = Object.values(panelData).flatMap(data => 
-    data.panels.map(panel => panel.id)
-  );
+  const handleProjectSelection = (projectId) => {
+    const overlappingSlots = getOverlappingSlotsForProject(
+      projectId,
+      panelTimeSlots,
+      projectPanels
+    );
+    console.log("overlappingSlots", overlappingSlots);
+    setOverlappingSlotsForSelectedProject(overlappingSlots);
 
-  // Grouping panelTimeSlots by date
-  const slotsByDate = {};
-  panelTimeSlots.forEach(slot => {
-    if (allPanelIds.includes(slot.panel.id)) {
-      if (!slotsByDate[slot.date]) {
-        slotsByDate[slot.date] = [];
+    // Update availableDatesMap based on overlappingSlots
+    const newAvailableDatesMap = {};
+    Object.keys(overlappingSlots).forEach((date) => {
+      const formattedDate = formatDateToYYYYMMDD(date);
+      newAvailableDatesMap[formattedDate] = true;
+    });
+    setAvailableDatesMap(newAvailableDatesMap);
+  };
+
+  const generatePresentationSlots = (baseTimeSlot) => {
+    const slots = [];
+    const baseHour = parseInt(baseTimeSlot.split(":")[0], 10); // Extract hour from baseTimeSlot
+
+    // Determine the end hour based on the base hour
+    const endHour = baseHour + 2;
+
+    // Loop through each 15 minute interval between baseHour and endHour
+    for (let hour = baseHour; hour < endHour; hour++) {
+      for (let minute = 0; minute < 60; minute += 15) {
+        const timeSlot = `${String(hour).padStart(2, "0")}:${String(
+          minute
+        ).padStart(2, "0")}`;
+        slots.push(timeSlot);
       }
-      slotsByDate[slot.date].push(slot);
     }
-  });
 
-  // Finding overlapping slots for each date
-  Object.keys(slotsByDate).forEach(date => {
-    const slotsForDate = slotsByDate[date];
-    
-    if (slotsForDate.length === allPanelIds.length) { // Only proceed if all panels have slots on this date
-      let commonSlots = slotsForDate[0].time_slots;
-      
-      slotsForDate.forEach(slot => {
-        commonSlots = commonSlots.filter(time => slot.time_slots.includes(time));
-      });
+    return slots;
+  };
 
-      if (commonSlots.length > 0) {
-        overlappingSlots[date] = commonSlots;
+  const handleOpenDateModal = async () => {
+    setDateModalOpen(true);
+  };
+
+  const handleCloseDateModal = () => {
+    setDateModalOpen(false);
+  };
+
+  const handleAddDate = async () => {
+    const newDateStr = formatDateToYYYYMMDD(selectedDate);
+    const isExisting = existingDates.some(
+      (dateObj) => dateObj.date === newDateStr
+    );
+
+    if (!isExisting) {
+      try {
+        const response = await api.post("/available_dates/", {
+          date: newDateStr,
+        });
+        console.log("Date added:", response.data);
+        existingDates.push({ id: response.data.id, date: newDateStr });
+        availableDatesMap[formatDateToYYYYMMDD(new Date(newDateStr))] = true;
+        handleAlertOpen("Date added successfully!", "success");
+      } catch (error) {
+        console.error("Error adding date:", error);
+        handleAlertOpen("Error adding date. Please try again.", "error");
       }
+    } else {
+      handleAlertOpen(
+        "This date is already selected. Please choose another date.",
+        "error"
+      );
     }
-  });
+  };
 
-  return overlappingSlots;
-}
+  // Function to handle opening the date picker modal
+  const handleOpenDatePicker = () => {
+    setIsDatePickerOpen(true);
+  };
 
-const handleProjectSelection = (projectId) => {
-  const overlappingSlots = getOverlappingSlotsForProject(projectId, panelTimeSlots, projectPanels);
-  console.log('overlappingSlots',overlappingSlots)
-  setOverlappingSlotsForSelectedProject(overlappingSlots);
+  // Function to handle closing the date picker modal
+  const handleCloseDatePicker = () => {
+    setIsDatePickerOpen(false);
+  };
 
-  // Update availableDatesMap based on overlappingSlots
-  const newAvailableDatesMap = {};
-  Object.keys(overlappingSlots).forEach(date => {
-    const formattedDate = formatDateToYYYYMMDD(date);
-    newAvailableDatesMap[formattedDate] = true;
-  });
-  setAvailableDatesMap(newAvailableDatesMap);
-};
+  const handleDeleteAlertClose = () => {
+    setDeleteAlert((prev) => ({ ...prev, open: false }));
+  };
 
-const generatePresentationSlots = (baseTimeSlot) => {
-  const slots = [];
-  const baseHour = parseInt(baseTimeSlot.split(':')[0], 10); // Extract hour from baseTimeSlot
-
-  // Determine the end hour based on the base hour
-  const endHour = baseHour + 2;
-
-  // Loop through each 15 minute interval between baseHour and endHour
-  for (let hour = baseHour; hour < endHour; hour++) {
-    for (let minute = 0; minute < 60; minute += 15) {
-      const timeSlot = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
-      slots.push(timeSlot);
+  const handleDeleteAction = async (dateId, dateStr) => {
+    try {
+      await api.delete(`/available_dates/${dateId}/`);
+      console.log(`Date with ID ${dateId} deleted successfully.`);
+      setExistingDates((existing) => existing.filter((d) => d.id !== dateId));
+      delete availableDatesMap[formatDateToYYYYMMDD(new Date(dateStr))];
+      handleAlertOpen("Date deleted successfully!", "success");
+    } catch (error) {
+      console.error(
+        `Error deleting date with ID ${dateId}:`,
+        error.response.data
+      );
+      handleAlertOpen("Error deleting date. Please try again.", "error");
     }
-  }
+  };
 
-  return slots;
-};
+  const fetchAvailableDates = async () => {
+    try {
+      const response = await api.get("/available_dates/");
+      console.log("response", response);
+      const fetchedDates = response.data.map((dateObj) => ({
+        id: dateObj.id,
+        date: new Date(dateObj.date),
+      }));
+      console.log("fetched data", fetchedDates);
+      setAvailableDatesMap(
+        fetchedDates.reduce((acc, current) => {
+          acc[formatDateToYYYYMMDD(current.date)] = true;
+          return acc;
+        }, {})
+      );
+      setExistingDates(
+        fetchedDates.map((d) => ({
+          id: d.id,
+          date: formatDateToYYYYMMDD(d.date),
+        }))
+      );
+    } catch (error) {
+      console.error("Error fetching available dates:", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchAvailableDates();
+  }, []);
 
   return (
     <ThemeProvider theme={theme}>
@@ -834,6 +922,21 @@ const generatePresentationSlots = (baseTimeSlot) => {
                 marginBottom: "1rem",
               }}
             />
+          </Grid>
+          <Grid item xs={12}>
+            <Button
+              startIcon={<ScheduleIcon />}
+              onClick={handleOpenDateModal}
+              variant="contained"
+              sx={{
+                float: "right",
+                marginTop: "2rem",
+                marginRight: "2.5rem",
+                marginBottom: "1rem",
+              }}
+            >
+              Manage Presentation Date
+            </Button>
           </Grid>
           <Box sx={{ margin: "30px", marginTop: "0.2rem" }}>
             <Paper sx={{ width: "100%", overflow: "hidden" }}>
@@ -1032,55 +1135,67 @@ const generatePresentationSlots = (baseTimeSlot) => {
           </Typography>
           {datesWithRecommendedSlotsMap && (
             <MyCalendarComponent
-            onChange={handleDateChange}
-            value={selectedDate}
-            availableDatesMap={availableDatesMap}
-          />
+              onChange={handleDateChange}
+              value={selectedDate}
+              availableDatesMap={availableDatesMap}
+            />
           )}
 
           <Typography variant="h6" gutterBottom style={{ marginTop: "20px" }}>
             Available Timeslots
           </Typography>
-          <Typography variant="body2" style={{ marginBottom: "10px", color:"grey" }}>
-    (Click the available timeslot)
-  </Typography>
-  <List>
-  {generateRecommendedTimeslots(selectedDate).map((slot, index) => {
-      const isSelected = selectedTime && selectedTime.formattedStartTime === slot;
-      const isBooked = isTimeslotBooked(
-        new Date(selectedDate.toISOString().split("T")[0] + "T" + slot)
-      );
+          <Typography
+            variant="body2"
+            style={{ marginBottom: "10px", color: "grey" }}
+          >
+            (Click the available timeslot)
+          </Typography>
+          <List>
+            {generateRecommendedTimeslots(selectedDate).map((slot, index) => {
+              const isSelected =
+                selectedTime && selectedTime.formattedStartTime === slot;
+              const isBooked = isTimeslotBooked(
+                new Date(selectedDate.toISOString().split("T")[0] + "T" + slot)
+              );
 
-      const [hours, minutes] = slot.split(":").map(Number);
-      const endTime = new Date();
-      endTime.setHours(hours, minutes + 15, 0, 0);
-      const endHours = endTime.getHours().toString().padStart(2, "0");
-      const endMinutes = endTime.getMinutes().toString().padStart(2, "0");
-      const endTimeFormatted = `${endHours}:${endMinutes}`;
+              const [hours, minutes] = slot.split(":").map(Number);
+              const endTime = new Date();
+              endTime.setHours(hours, minutes + 15, 0, 0);
+              const endHours = endTime.getHours().toString().padStart(2, "0");
+              const endMinutes = endTime
+                .getMinutes()
+                .toString()
+                .padStart(2, "0");
+              const endTimeFormatted = `${endHours}:${endMinutes}`;
 
-      return (
-        <ListItem
-          key={index}
-          onClick={() => isBooked ? null : handleTimeslotSelection(slot)}
-          style={{
-            backgroundColor: isSelected ? "#D6EAF8" : isBooked ? "#f0f0f0" : "transparent",
-            cursor: isBooked ? "not-allowed" : "pointer",
-            textDecoration: isBooked ? "line-through" : "none",
-            border: '1px solid #e0e0e0', // Outline each item
-            borderRadius: '4px', // Optional: Add rounded corners
-            marginBottom: '4px' // Add space between items
-          }}
-          disabled={isBooked}
-        >
-          <ListItemText 
-            primary={`${slot} - ${endTimeFormatted}`} 
-            primaryTypographyProps={{ style: { fontSize: '0.875rem' } }}
-          />
-        </ListItem>
-      );
-  })}
-</List>
-
+              return (
+                <ListItem
+                  key={index}
+                  onClick={() =>
+                    isBooked ? null : handleTimeslotSelection(slot)
+                  }
+                  style={{
+                    backgroundColor: isSelected
+                      ? "#D6EAF8"
+                      : isBooked
+                      ? "#f0f0f0"
+                      : "transparent",
+                    cursor: isBooked ? "not-allowed" : "pointer",
+                    textDecoration: isBooked ? "line-through" : "none",
+                    border: "1px solid #e0e0e0", // Outline each item
+                    borderRadius: "4px", // Optional: Add rounded corners
+                    marginBottom: "4px", // Add space between items
+                  }}
+                  disabled={isBooked}
+                >
+                  <ListItemText
+                    primary={`${slot} - ${endTimeFormatted}`}
+                    primaryTypographyProps={{ style: { fontSize: "0.875rem" } }}
+                  />
+                </ListItem>
+              );
+            })}
+          </List>
 
           <Typography variant="h6" gutterBottom style={{ marginTop: "20px" }}>
             Custom Timeslot
@@ -1130,8 +1245,263 @@ const generatePresentationSlots = (baseTimeSlot) => {
         </DialogActions>
       </Dialog>
 
+      <Modal
+        open={dateModalOpen}
+        onClose={handleCloseDateModal}
+        aria-labelledby="date-modal-title"
+      >
+        <Box
+          sx={{
+            position: "relative",
+            margin: "20px",
+            padding: "20px",
+            border: "1px solid #ddd",
+            borderRadius: "4px",
+            backgroundColor: "background.paper",
+            maxHeight: "80vh",
+            overflowY: "auto",
+            "&::-webkit-scrollbar": {
+              width: "0.4em",
+            },
+            "&::-webkit-scrollbar-thumb": {
+              backgroundColor: "rgba(0,0,0,0.1)",
+              borderRadius: "4px",
+            },
+            boxShadow: 1,
+            width: "auto",
+            maxWidth: "600px",
+            mx: "auto",
+          }}
+        >
+          <IconButton
+            aria-label="close"
+            onClick={handleCloseDateModal}
+            sx={{
+              position: "absolute",
+              right: 8,
+              top: 8,
+            }}
+          >
+            <CloseIcon />
+          </IconButton>
+          <Typography
+            variant="h5"
+            component="h2"
+            sx={{ mb: 2, fontWeight: "bold" }}
+          >
+            Manage Date
+          </Typography>
+
+          <Divider />
+
+          <Grid container spacing={3}>
+            <Box sx={{ margin: "20px", marginTop: "2rem" }}>
+              <Box
+                sx={{ display: "flex", gap: 2, flexWrap: "wrap", marginTop: 2 }}
+              >
+                {Array.isArray(existingDates) &&
+                  existingDates
+                    .sort((a, b) => new Date(a.date) - new Date(b.date))
+                    .map((dateObj, index) => {
+                      const date = new Date(dateObj.date);
+                      const day = date.toLocaleDateString("en-US", {
+                        weekday: "short",
+                      });
+                      const dateStr = date.toLocaleDateString("en-GB");
+
+                      return (
+                        <Chip
+                          key={index}
+                          label={`${dateStr} (${day})`}
+                          variant="outlined"
+                          sx={{
+                            color: "black",
+                            fontSize: "1rem",
+                            margin: "4px",
+                            borderRadius: "5px",
+                          }}
+                          onDelete={() => handleDeleteAction(dateObj.id)}
+                          deleteIcon={<CloseIcon />}
+                        />
+                      );
+                    })}
+              </Box>
+
+              {/* Calendar Icon and Text for adding new date */}
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 1,
+                  mt: 6,
+                  ml: 1,
+                }}
+              >
+                <Button
+                  variant="outlined"
+                  color="primary"
+                  onClick={handleOpenDatePicker}
+                  startIcon={<AddCircleOutlineIcon />}
+                >
+                  add date
+                </Button>
+              </Box>
+
+              {/* Modal for Date Picker */}
+              <Modal open={isDatePickerOpen} onClose={handleCloseDatePicker}>
+                <Box
+                  sx={{
+                    position: "absolute",
+                    top: "50%",
+                    left: "50%",
+                    transform: "translate(-50%, -50%)",
+                    bgcolor: "background.paper",
+                    boxShadow: 24,
+                    p: 4,
+                  }}
+                >
+                  <Modal
+                    open={isDatePickerOpen}
+                    onClose={handleCloseDatePicker}
+                  >
+                    <Box
+                      sx={{
+                        position: "absolute",
+                        top: "50%",
+                        left: "50%",
+                        transform: "translate(-50%, -50%)",
+                        bgcolor: "background.paper",
+                        boxShadow: 24,
+                        p: 4,
+                      }}
+                    >
+                      <IconButton
+                        sx={{
+                          position: "absolute",
+                          top: 0,
+                          right: 0,
+                          color: "secondary",
+                        }}
+                        onClick={handleCloseDatePicker}
+                      >
+                        <CloseIcon /> {/* Close icon */}
+                      </IconButton>
+                      <LocalizationProvider dateAdapter={AdapterDateFns}>
+                        <DatePicker
+                          label="Select Date"
+                          value={selectedDate}
+                          onChange={(newValue) => setSelectedDate(newValue)}
+                          components={{
+                            textField: TextField,
+                          }}
+                          slotProps={{
+                            textField: ({}) => ({
+                              color: "secondary",
+                            }),
+                            day: {
+                              sx: {
+                                "&.MuiPickersDay-root.Mui-selected": {
+                                  backgroundColor: "#8950fc",
+                                },
+                              },
+                            },
+                            actionBar: {
+                              sx: {
+                                ".MuiButton-root.MuiButton-text.MuiButton-textPrimary":
+                                  {
+                                    color: "#8950fc !important",
+                                  },
+                              },
+                            },
+                          }}
+                        />
+                      </LocalizationProvider>
+                      <Box
+                        sx={{
+                          mt: 2,
+                          display: "flex",
+                          justifyContent: "flex-end",
+                        }}
+                      >
+                        <Button
+                          variant="contained"
+                          color="primary"
+                          onClick={handleAddDate}
+                        >
+                          Add
+                        </Button>
+                      </Box>
+                    </Box>
+                  </Modal>
+                  <LocalizationProvider dateAdapter={AdapterDateFns}>
+                    <DatePicker
+                      label="Select Date"
+                      value={selectedDate}
+                      onChange={(newValue) => setSelectedDate(newValue)}
+                      components={{
+                        textField: TextField,
+                      }}
+                      slotProps={{
+                        textField: ({}) => ({
+                          color: "secondary",
+                        }),
+                        day: {
+                          sx: {
+                            "&.MuiPickersDay-root.Mui-selected": {
+                              backgroundColor: "#8950fc",
+                            },
+                          },
+                        },
+                        actionBar: {
+                          sx: {
+                            ".MuiButton-root.MuiButton-text.MuiButton-textPrimary":
+                              {
+                                color: "#8950fc !important",
+                              },
+                          },
+                        },
+                      }}
+                    />
+                  </LocalizationProvider>
+                  <Box
+                    sx={{ mt: 2, display: "flex", justifyContent: "flex-end" }}
+                  >
+                    <Button
+                      variant="contained"
+                      color="primary"
+                      onClick={handleAddDate}
+                    >
+                      Add
+                    </Button>
+                  </Box>
+                </Box>
+              </Modal>
+            </Box>
+          </Grid>
+
+          {deleteAlert.open && (
+            <Alert
+              severity={deleteAlert.severity}
+              onClose={handleDeleteAlertClose}
+              sx={{
+                position: "fixed",
+                bottom: "20%",
+                left: "50%",
+                transform: "translateX(-50%)",
+                boxShadow: 3,
+                width: "auto",
+                maxWidth: "90%",
+                zIndex: (theme) => theme.zIndex.modal + 1,
+              }}
+            >
+              {deleteAlert.message}
+            </Alert>
+          )}
+        </Box>
+      </Modal>
+
       <Backdrop
-        sx={{ color: "#fff", zIndex: (theme) => theme.zIndex.drawer + 1 }}
+        sx={{ color: "#fff", zIndex: (theme) => theme.zIndex.modal + 1 }}
         open={alertOpen}
       >
         <Alert

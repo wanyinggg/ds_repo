@@ -23,6 +23,8 @@ router.register(r'total_scores', EvaluationTotalScoreViewSet)
 router.register(r'semester', SemesterViewSet)
 router.register(r'archived_projects', ArchivedProjectViewSet)
 router.register(r'student_limit', LecturerStudentLimitViewSet)
+router.register(r'available_dates', AvailableDateViewSet)
+
 
 urlpatterns = [
     path('', include(router.urls)),

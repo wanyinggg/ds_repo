@@ -45,6 +45,7 @@ class Semester(models.Model):
         if self.start_date and not self.end_date:
             self.end_date = self.calculate_end_date()
         super().save(*args, **kwargs)
+        self.save_week15_dates()
 
     def calculate_end_date(self):
         # semester duration is 15 weeks (include mid sem break) and ends on a Friday
@@ -53,6 +54,26 @@ class Semester(models.Model):
         while end.weekday() != 4:  # 0 = Monday, 4 = Friday
             end += timedelta(days=1)
         return end
+    
+    def save_week15_dates(self):
+        if self.end_date:
+            # Calculate Week 15 dates
+            week15_dates = self.calculate_week15_dates()
+
+            # Save Week 15 dates to AvailableDate model
+            for date in week15_dates:
+                AvailableDate.objects.get_or_create(date=date)
+
+    def calculate_week15_dates(self):
+        # Calculate dates of the last week (Week 15)
+        end = self.end_date
+        week15_dates = []
+
+        for i in range(5):  # Assuming a 5-day week
+            day = end - timedelta(days=i)
+            week15_dates.append(day)
+
+        return week15_dates
 
     def __str__(self):
         return f"Semester {self.semester} - {self.academic_year}"
@@ -368,3 +389,9 @@ class TimeRange(models.Model):
 class LecturerStudentLimit(models.Model):
     num_of_students = models.IntegerField()
     semester = models.ForeignKey(Semester, on_delete=models.CASCADE, related_name='lecturer_limits')
+
+class AvailableDate(models.Model):
+    date = models.DateField(unique=True)
+
+    def __str__(self):
+        return str(self.date)

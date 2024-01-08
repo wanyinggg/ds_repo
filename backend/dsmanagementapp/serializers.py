@@ -310,3 +310,8 @@ class LecturerStudentLimitSerializer(serializers.ModelSerializer):
     class Meta:
         model = LecturerStudentLimit
         fields = ['id', 'num_of_students', 'semester']
+
+class AvailableDateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AvailableDate
+        fields = ['id', 'date']

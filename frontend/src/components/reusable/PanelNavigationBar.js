@@ -58,8 +58,6 @@ function PanelNavigationBar() {
   };
 
   const settings = [
-    "Switch to Supervisor",
-    ...(isProgramCoordinator ? ["Switch to Program Coordinator"] : []),
     "Profile",
     "Reset Password",
     "Logout",
@@ -96,22 +94,6 @@ function PanelNavigationBar() {
     marginRight: "8px",
   });
 
-  const showToggleButtonGroup = location.pathname === "/panelpresentation";
-
-  const getPageName = () => {
-    if (location.pathname === "/panelevaluationtemplate") {
-      return "Data Science Project Presentation / Pitching (40%)";
-    } else if (location.pathname === "/profile") {
-      return "Profile";
-    } else if (location.pathname .startsWith("/resetcurrentpassword")) {
-      return "Reset Password";
-    }
-    
-    const currentPage = pages.find((page) => page.path === location.pathname);
-    return currentPage ? currentPage.label : "";
-  };
-
-  const shouldShowPageName = location.pathname !== "/panelpresentation";
 
   return (
     <ThemeProvider theme={Theme}>
@@ -136,7 +118,6 @@ function PanelNavigationBar() {
             marginLeft: "1.875rem", 
           }}
         >
-          {showToggleButtonGroup && (
             <ToggleButtonGroup
               value={userRole}
               exclusive
@@ -205,20 +186,7 @@ function PanelNavigationBar() {
                   Program Coordinator
                 </ToggleButton>
               )}
-            </ToggleButtonGroup>
-          )}
-          {shouldShowPageName && (
-            <Typography
-              variant="h5"
-              sx={{
-                color: "white",
-                letterSpacing: "0.1em",
-                margin: "0",
-              }}
-            >
-              {getPageName()}
-            </Typography>
-          )}
+            </ToggleButtonGroup> 
         </Box>
         <Container maxWidth="l">
           <Toolbar disableGutters>
@@ -351,10 +319,6 @@ function PanelNavigationBar() {
                     onClick={() => {
                       if (setting === "Logout") {
                         handleLogout();
-                      } else if (setting === "Switch to Supervisor") {
-                        handleRoleChange(null, "supervisor");
-                      } else if (setting === "Switch to Program Coordinator") {
-                        handleRoleChange(null, "programcoordinator");
                       } else if (setting === "Profile") {
                         navigate(`/profile?role=${userRole}`);
                       } else if (setting === "Reset Password") {

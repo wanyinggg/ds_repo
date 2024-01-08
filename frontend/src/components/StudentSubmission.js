@@ -12,7 +12,9 @@ import {
   DialogActions,
   DialogContent,
   DialogContentText,
-  DialogTitle,Alert, Backdrop 
+  DialogTitle,
+  Alert,
+  Backdrop,
 } from "@mui/material";
 import { ThemeProvider, styled } from "@mui/material/styles";
 import Theme from "./reusable/Theme";
@@ -55,8 +57,7 @@ export default function StudentSubmission() {
   const [driveLink, setDriveLink] = useState("");
   const [reportFile, setReportFile] = useState(null);
   const [isProposalSubmitted, setIsProposalSubmitted] = useState(false);
-  const [isDriveLinkSubmitted, setIsDriveLinkSubmitted] =
-    useState(false);
+  const [isDriveLinkSubmitted, setIsDriveLinkSubmitted] = useState(false);
   const [isReportSubmitted, setIsReportSubmitted] = useState(false);
   const [proposalId, setProposalId] = useState("");
   const [driveId, setDriveId] = useState("");
@@ -75,7 +76,7 @@ export default function StudentSubmission() {
     setAlertOpen(true);
     setTimeout(() => {
       setAlertOpen(false);
-    }, 1500); 
+    }, 1500);
   };
 
   const handleAlertClose = () => {
@@ -99,7 +100,7 @@ export default function StudentSubmission() {
     const selectedFile = event.target.files[0];
 
     if (selectedFile && selectedFile.type !== "application/pdf") {
-      handleAlertOpen("Please select a valid PDF file.","error");
+      handleAlertOpen("Please select a valid PDF file.", "error");
       setIsFileValid(false); // set the file as invalid
       return;
     } else {
@@ -140,6 +141,34 @@ export default function StudentSubmission() {
     }
   }, []);
 
+  const fetchProject = async () => {
+    setIsLoading(true);
+
+    try {
+        const response = await api.get("/projects/", { params: { user_projects: 'true' } });
+        console.log(response.data);
+
+        if (response.data.length > 0) {
+            const projectDetails = response.data[0];
+            setProject(projectDetails);
+        } else {
+            setProject(null); 
+        }
+    } catch (error) {
+        console.error("Error fetching project", error.response?.data);
+        setProject(null);
+    } finally {
+        setIsLoading(false);
+    }
+};
+
+useEffect(() => {
+    if (user) {
+        fetchProject(); 
+    }
+}, [user]);
+
+
   const fetchDocument = async () => {
     setIsLoading(true);
 
@@ -162,7 +191,6 @@ export default function StudentSubmission() {
 
       const response = await api.get(url, { params: { user_projects: true } });
       console.log(response.data);
-      const { project } = response.data[0]; // Common properties
 
       if (selectedOption === "Proposal") {
         const { id, uploaded_file } = response.data[0]; // File-specific property
@@ -174,14 +202,13 @@ export default function StudentSubmission() {
         setReportId(id);
         setReportFile(uploaded_file);
         setIsReportSubmitted(uploaded_file !== null && uploaded_file !== "");
-      }  else if (selectedOption === "Google Drive") {
+      } else if (selectedOption === "Google Drive") {
         const { id, uploaded_link } = response.data[0]; // Link-specific property
         setDriveId(id);
         setDriveLink(uploaded_link);
         setIsDriveLinkSubmitted(uploaded_link !== null && uploaded_link !== "");
       }
 
-      setProject(project);
     } catch (error) {
       console.log("Error fetching document", error.response.data);
     } finally {
@@ -227,9 +254,7 @@ export default function StudentSubmission() {
       case "Google Drive":
         return (
           <Box>
-            <Typography variant="body1">
-              Google drive link:
-            </Typography>
+            <Typography variant="body1">Google drive link:</Typography>
             <TextField
               type="text"
               variant="outlined"
@@ -247,6 +272,16 @@ export default function StudentSubmission() {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+
+    // Check if the student has a project
+    if (!project ) {
+      handleAlertOpen(
+        "Unable to submit. You don't have a project yet.",
+        "error"
+      );
+      return;
+    }
+
     setIsLoading(true);
 
     let formData = new FormData();
@@ -298,6 +333,14 @@ export default function StudentSubmission() {
   }, [user, selectedOption]);
 
   const handleSaveChanges = async () => {
+    // Check if the student has a project
+    if (!project ) {
+      handleAlertOpen(
+        "Unable to submit. You don't have a project yet.",
+        "error"
+      );
+      return;
+    }
     setIsLoading(true);
 
     let formData = new FormData();
@@ -580,7 +623,7 @@ export default function StudentSubmission() {
                       {renderRightBoxContent()}
                       {isEditing ? (
                         selectedOption === "Proposal" ||
-                        selectedOption === "Report"  ? (
+                        selectedOption === "Report" ? (
                           <Box>
                             Previous Uploaded File:
                             <a
@@ -680,17 +723,17 @@ export default function StudentSubmission() {
         </DialogActions>
       </Dialog>
       <Backdrop
-        sx={{ color: '#fff', zIndex: (theme) => theme.zIndex.drawer + 1 }}
+        sx={{ color: "#fff", zIndex: (theme) => theme.zIndex.drawer + 1 }}
         open={alertOpen}
       >
         <Alert
           severity={alertSeverity}
           onClose={handleAlertClose}
           sx={{
-            boxShadow: 24, 
-            p: 2, 
-            minWidth: '20%', 
-            display: 'flex', 
+            boxShadow: 24,
+            p: 2,
+            minWidth: "20%",
+            display: "flex",
           }}
         >
           {alertMessage}
