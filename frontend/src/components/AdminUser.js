@@ -85,16 +85,16 @@ const AdminUser = () => {
       .then((response) => {
         console.log("All users from API:", response.data);
 
-        let usersInSelectedGroup; 
+        let usersInSelectedGroup;
         if (selectedGroup) {
           usersInSelectedGroup = response.data.filter((user) => {
             // For students (group ID 1 is for students), check if the user is active
             if (selectedGroup === 1) {
-              return user.groups.includes(selectedGroup) && user.is_active ;
+              return user.groups.includes(selectedGroup) && user.is_active;
             }
-            return user.groups.includes(selectedGroup); 
+            return user.groups.includes(selectedGroup);
           });
-        }  else {
+        } else {
           usersInSelectedGroup = response.data;
         }
         setUsers(usersInSelectedGroup);
@@ -109,6 +109,11 @@ const AdminUser = () => {
   }, [selectedGroup]);
 
   const handleAddUser = () => {
+    if (!isValidEmail(email)) {
+      handleAlertOpen("Invalid email format", "error");
+      return;
+    }
+
     let selectedGroupValue;
     let selectedLecturerValue = [];
 
@@ -165,6 +170,11 @@ const AdminUser = () => {
   };
 
   const handleEditUser = () => {
+    if (!isValidEmail(email)) {
+      handleAlertOpen("Invalid email format", "error");
+      return;
+    }
+
     if (!selectedUser) return;
 
     let selectedGroupValue;
@@ -347,11 +357,10 @@ const AdminUser = () => {
       setAlertOpen(false);
     }, 1500);
   };
-  
+
   const handleAlertClose = () => {
     setAlertOpen(false);
   };
-  
 
   const handleSearch = (event) => {
     setSearchTerm(event.target.value);
@@ -404,6 +413,11 @@ const AdminUser = () => {
     page * rowsPerPage,
     page * rowsPerPage + rowsPerPage
   );
+
+  const isValidEmail = (email) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
 
   return (
     <div>
@@ -610,6 +624,7 @@ const AdminUser = () => {
               onChange={(e) => setUsername(e.target.value)}
               fullWidth
               sx={{ mb: 2, mt: 2 }}
+              required
             />
             <TextField
               label="Full Name"
@@ -617,6 +632,7 @@ const AdminUser = () => {
               onChange={(e) => setFullName(e.target.value)}
               fullWidth
               sx={{ mb: 2 }}
+              required
             />
             <TextField
               label="Email"
@@ -624,6 +640,7 @@ const AdminUser = () => {
               onChange={(e) => setEmail(e.target.value)}
               fullWidth
               sx={{ mb: 2 }}
+              required
             />
             <Grid container direction="column" spacing={2}>
               <Grid item xs={12}>
@@ -649,6 +666,7 @@ const AdminUser = () => {
                     value={roleGroup}
                     onChange={handleRoleDialogChange}
                     sx={{ minWidth: "5rem" }}
+                    required
                   >
                     <MenuItem value={"Student"}>Student</MenuItem>
                     <MenuItem value={"Lecturer"}>Lecturer</MenuItem>
@@ -681,6 +699,7 @@ const AdminUser = () => {
                       value={lecturerRoles}
                       onChange={handleLecturerRolesChange}
                       sx={{ minWidth: "10rem" }}
+                      required
                     >
                       <MenuItem value={"Supervisor, Panel"}>
                         Supervisor, Panel
@@ -697,9 +716,31 @@ const AdminUser = () => {
           <DialogActions>
             <Button onClick={handleCloseDialog}>Cancel</Button>
             {selectedUser ? (
-              <Button onClick={handleEditUser}>Save Changes</Button>
+              <Button
+                onClick={handleEditUser}
+                disabled={
+                  !username ||
+                  !email ||
+                  !fullName ||
+                  !roleGroup ||
+                  (roleGroup === "Lecturer" && lecturerRoles.length === 0)
+                }
+              >
+                Save Changes
+              </Button>
             ) : (
-              <Button onClick={handleAddUser}>Add User</Button>
+              <Button
+                onClick={handleAddUser}
+                disabled={
+                  !username ||
+                  !email ||
+                  !fullName ||
+                  !roleGroup ||
+                  (roleGroup === "Lecturer" && lecturerRoles.length === 0)
+                }
+              >
+                Add User
+              </Button>
             )}
           </DialogActions>
         </Dialog>
@@ -728,22 +769,22 @@ const AdminUser = () => {
           </DialogActions>
         </Dialog>
         <Backdrop
-        sx={{ color: '#fff', zIndex: (theme) => theme.zIndex.drawer + 1 }}
-        open={alertOpen}
-      >
-        <Alert
-          severity={alertSeverity}
-          onClose={handleAlertClose}
-          sx={{
-            boxShadow: 24, 
-            p: 2, 
-            minWidth: '20%', 
-            display: 'flex', 
-          }}
+          sx={{ color: "#fff", zIndex: (theme) => theme.zIndex.modal + 1 }}
+          open={alertOpen}
         >
-          {alertMessage}
-        </Alert>
-      </Backdrop>
+          <Alert
+            severity={alertSeverity}
+            onClose={handleAlertClose}
+            sx={{
+              boxShadow: 24,
+              p: 2,
+              minWidth: "20%",
+              display: "flex",
+            }}
+          >
+            {alertMessage}
+          </Alert>
+        </Backdrop>
       </ThemeProvider>
     </div>
   );

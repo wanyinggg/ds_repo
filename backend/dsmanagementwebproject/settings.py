@@ -176,3 +176,6 @@ FRONTEND_URL = 'http://localhost:3000'
 DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10 MB
 
 CORS_ALLOW_ALL_ORIGINS = True
+
+# settings.py
+AUTHENTICATION_BACKENDS = ['dsmanagementapp.caseinsensitive.CaseInsensitiveModelBackend']

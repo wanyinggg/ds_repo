@@ -1225,7 +1225,7 @@ class StudentProjectPanelViewSet(viewsets.ModelViewSet):
             student_id=student_id, project_id=project_id)
         instance.panels.set(panels_ids)
 
-        # self._notify_students_and_panels(instance, created=True)
+        self._notify_students_and_panels(instance, created=True)
 
     def perform_update(self, serializer):
             original_panel_ids = set(serializer.instance.panels.values_list('id', flat=True))
@@ -1579,3 +1579,15 @@ class AvailableDateViewSet(viewsets.ModelViewSet):
         instance = self.get_object()
         self.perform_destroy(instance)
         return Response(status=status.HTTP_204_NO_CONTENT)
+    
+class AnnouncementListView(generics.ListCreateAPIView):
+    authentication_classes = []  
+    permission_classes = [] 
+    queryset = Announcement.objects.all()
+    serializer_class = AnnouncementSerializer
+
+class AnnouncementDetailView(generics.RetrieveUpdateDestroyAPIView):
+    authentication_classes = []  
+    permission_classes = [] 
+    queryset = Announcement.objects.all()
+    serializer_class = AnnouncementSerializer

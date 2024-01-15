@@ -460,65 +460,65 @@ export default function ProgramCoordinatorSchedulling() {
     return `${hours}:${minutes}`;
   };
 
-  function generateCSV() {
-    const data = paginatedProjects.map((row, index) => {
-      const projectNumber = index + 1;
+  // function generateCSV() {
+  //   const data = paginatedProjects.map((row, index) => {
+  //     const projectNumber = index + 1;
 
-      const schedule = presentationSchedules.find(
-        (s) => s.project.id === row.id && s.student.id === row.student.id
-      );
+  //     const schedule = presentationSchedules.find(
+  //       (s) => s.project.id === row.id && s.student.id === row.student.id
+  //     );
 
-      const googleMeetLink = schedule ? schedule.google_meet_link : "";
+  //     const googleMeetLink = schedule ? schedule.google_meet_link : "";
 
-      const date = schedule ? new Date(schedule.date).toLocaleDateString() : "";
-      const time = schedule
-        ? `${extractHourAndMinute(
-            schedule.start_time
-          )} - ${extractHourAndMinute(schedule.end_time)}`
-        : "";
+  //     const date = schedule ? new Date(schedule.date).toLocaleDateString() : "";
+  //     const time = schedule
+  //       ? `${extractHourAndMinute(
+  //           schedule.start_time
+  //         )} - ${extractHourAndMinute(schedule.end_time)}`
+  //       : "";
 
-      const panels =
-        projectPanels[row.id] &&
-        projectPanels[row.id][row.student.id] &&
-        projectPanels[row.id][row.student.id].panels
-          ? projectPanels[row.id][row.student.id].panels
-              .map((panel) => panel.full_name)
-              .join(", ")
-          : "";
+  //     const panels =
+  //       projectPanels[row.id] &&
+  //       projectPanels[row.id][row.student.id] &&
+  //       projectPanels[row.id][row.student.id].panels
+  //         ? projectPanels[row.id][row.student.id].panels
+  //             .map((panel) => panel.full_name)
+  //             .join(", ")
+  //         : "";
 
-      return {
-        No: projectNumber,
-        "Project Title": row.title,
-        Student: row.student_fullname,
-        Supervisor: row.created_by.full_name,
-        Panels: panels,
-        Date: date,
-        Time: time,
-        "Google Meet Link": googleMeetLink,
-      };
-    });
+  //     return {
+  //       No: projectNumber,
+  //       "Project Title": row.title,
+  //       Student: row.student_fullname,
+  //       Supervisor: row.created_by.full_name,
+  //       Panels: panels,
+  //       Date: date,
+  //       Time: time,
+  //       "Google Meet Link": googleMeetLink,
+  //     };
+  //   });
 
-    // Generate CSV
-    const replacer = (key, value) => (value === null ? "" : value);
-    const header = Object.keys(data[0]);
-    const csv = [
-      header.join(","),
-      ...data.map((row) =>
-        header
-          .map((fieldName) => JSON.stringify(row[fieldName], replacer))
-          .join(",")
-      ),
-    ].join("\r\n");
+  //   // Generate CSV
+  //   const replacer = (key, value) => (value === null ? "" : value);
+  //   const header = Object.keys(data[0]);
+  //   const csv = [
+  //     header.join(","),
+  //     ...data.map((row) =>
+  //       header
+  //         .map((fieldName) => JSON.stringify(row[fieldName], replacer))
+  //         .join(",")
+  //     ),
+  //   ].join("\r\n");
 
-    // Create Blob and initiate the download
-    const blob = new Blob([csv], { type: "text/csv" });
-    const link = document.createElement("a");
-    link.setAttribute("download", "data.csv");
-    link.href = window.URL.createObjectURL(blob);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  }
+  //   // Create Blob and initiate the download
+  //   const blob = new Blob([csv], { type: "text/csv" });
+  //   const link = document.createElement("a");
+  //   link.setAttribute("download", "data.csv");
+  //   link.href = window.URL.createObjectURL(blob);
+  //   document.body.appendChild(link);
+  //   link.click();
+  //   document.body.removeChild(link);
+  // }
 
   useEffect(() => {
     const fetchPanelTimeSlots = async () => {
@@ -1084,14 +1084,14 @@ export default function ProgramCoordinatorSchedulling() {
               />
             </Paper>
           </Box>
-          <Button
+          {/* <Button
             onClick={generateCSV}
             variant="contained"
             color="primary"
             sx={{ marginLeft: "30px", marginBottom: "20px" }}
           >
             Generate csv
-          </Button>
+          </Button> */}
         </Grid>
       </Grid>
       <Dialog

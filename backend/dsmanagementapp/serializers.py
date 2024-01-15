@@ -315,3 +315,10 @@ class AvailableDateSerializer(serializers.ModelSerializer):
     class Meta:
         model = AvailableDate
         fields = ['id', 'date']
+
+class AnnouncementSerializer(serializers.ModelSerializer):
+    created_by = UserSerializer(read_only=True)
+    created_by_id = serializers.PrimaryKeyRelatedField(queryset=User.objects.all(), source='created_by')
+    class Meta:
+        model = Announcement
+        fields = '__all__'

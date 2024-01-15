@@ -76,8 +76,8 @@ const ConfirmationDialog = ({ open, onClose, onConfirm, title, content, loading 
         <DialogContentText>{content}</DialogContentText>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose} disabled={loading}>No</Button>
-        <Button onClick={onConfirm} color="primary" disabled={loading}>
+      <Button onClick={onClose} color="error" disabled={loading}>No</Button>
+        <Button onClick={onConfirm} color="success" disabled={loading}>
           {loading ? <CircularProgress size={24} /> : "Yes"}
         </Button>
       </DialogActions>

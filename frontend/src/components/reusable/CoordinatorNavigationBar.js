@@ -29,6 +29,7 @@ const pages = [
   { label: "Presentation Schedule", path: "/programcoordinatorschedulling" },
   { label: "Student Reports", path: "/programcoordinatorreport" },
   { label: "Dashboard", path: "/dashboard" },
+  { label: "Announcement Control", path: "/programcoordinatorannouncement" },
 ];
 
 const settings = ["Profile", "Reset Password", "Logout"];

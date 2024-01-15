@@ -38,6 +38,7 @@ urlpatterns = [
     path('notifications/', views.NotificationListView.as_view(), name='notification-list'),
     path('notifications/<int:notification_id>/read/', views.mark_notification_read, name='mark-notification-read'),
     path('students-per-lecturer/', StudentsPerLecturer.as_view(), name='students-per-lecturer'),
-
+    path('announcements/', AnnouncementListView.as_view(), name='announcement-list'),
+    path('announcements/<int:pk>/', AnnouncementDetailView.as_view(), name='announcement-detail'),
 ]
     

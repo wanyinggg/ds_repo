@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Route, Routes} from "react-router-dom";
 
 import HomePage from "./components/HomePage";
 import LoginForm from "./components/LoginForm";
+import AnnouncementDetail from "./components/AnnouncementDetail";
 import ProjectDetail from "./components/ProjectDetail";
 import PreviousProjectDetail from "./components/PreviousProjectDetail";
 
@@ -48,6 +49,7 @@ import PanelEvaluationTemplate from "./components/PanelEvaluationTemplate";
 import ProgramCoordinatorHome from "./components/ProgramCoordinatorHome";
 import ProgramCoordinatorSchedulling from "./components/ProgramCoordinatorSchedulling";
 import ProgramCoordinatorReport from "./components/ProgramCoordinatorReport";
+import ProgramCoordinatorAnnouncement from "./components/ProgramCoordinatorAnnouncement";
 import Dashboard from "./components/Dashboard";
 
 
@@ -59,6 +61,7 @@ function App() {
         <Route path="/login" element={<LoginForm />} />
         <Route path="/projectdetail/:id" element={<ProjectDetail />} />
         <Route path="/previousprojectdetail/:id" element={<PreviousProjectDetail />} />
+        <Route path="/announcementdetail/:id" element={<AnnouncementDetail />} />
 
         <Route path="/forgotpassword" element={<ForgotPassword />} />
         <Route path="/reset-password/:token" element={<ForgotPasswordReset />} />
@@ -103,6 +106,7 @@ function App() {
         <Route path="/programcoordinator" element={<ProgramCoordinatorHome />} /> 
         <Route path="/programcoordinatorschedulling" element={<ProgramCoordinatorSchedulling />} />
         <Route path="/programcoordinatorreport" element={<ProgramCoordinatorReport />} /> 
+        <Route path="/programcoordinatorannouncement" element={<ProgramCoordinatorAnnouncement/>} /> 
 
       </Routes>
     </Router>
