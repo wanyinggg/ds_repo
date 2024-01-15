@@ -167,7 +167,7 @@ EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 EMAIL_HOST_USER = 'u2005373@siswa.um.edu.my'
-EMAIL_HOST_PASSWORD = 'glgabbyiboqflmjj' #app password
+EMAIL_HOST_PASSWORD = '' #app password
 
 DEFAULT_FROM_EMAIL = 'u2005373@siswa.um.edu.my'
 
