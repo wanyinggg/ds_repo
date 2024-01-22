@@ -64,6 +64,25 @@ The Data Science Project Management System is a comprehensive tool designed to s
 
 5. **Place the `client_secret.json` in the Project:**
    - Place this file in the `dsmanagementapp` directory of the project.
+  
+### SQLite Database with Dummy Data
+
+The project includes an SQLite database pre-populated with dummy data for demonstration purposes. This data is fictional and intended to illustrate how the system works.
+
+#### Using the Database
+- The SQLite database file is located at `backend` folder.
+- No additional configuration is required to connect to this database. The Django settings are already configured to use this database.
+
+#### Essential Data in `auth_group`
+- The `auth_group` table contains predefined data necessary for the application's user roles and permissions.
+- This data is required for the correct operation of the system and should be maintained as is.
+
+#### Resetting or Replacing Data (Except `auth_group`)
+If you need to reset or replace the dummy data (excluding the `auth_group` table):
+1. Backup the `auth_group` table data.
+2. Delete the SQLite file, if necessary.
+3. Run `python manage.py migrate` to create a new database.
+4. Restore the `auth_group` table data to the new database.
 
 
 ## Usage
