@@ -8,9 +8,7 @@ The Data Science Project Management System is a comprehensive tool designed to s
 - [Prerequisites](#prerequisites)
 - [Technologies Used](#technologies-used)
 - [Setup and Installation](#setup-and-installation)
-- [Usage](#usage)
-- [How to Contribute](#how-to-contribute)
-- [License](#license)
+- [Usage](#usage) 
 
 ## Prerequisites
 Before you begin, ensure you have met the following requirements:
