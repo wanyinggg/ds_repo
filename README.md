@@ -5,11 +5,17 @@ The Data Science Project Management System is a comprehensive tool designed to s
 
 ## Table of Contents
 - [Introduction](#introduction)
+- [Prerequisites](#prerequisites)
 - [Technologies Used](#technologies-used)
 - [Setup and Installation](#setup-and-installation)
 - [Usage](#usage)
 - [How to Contribute](#how-to-contribute)
 - [License](#license)
+
+## Prerequisites
+Before you begin, ensure you have met the following requirements:
+- Node.js installed on your machine. You can download and install Node.js from [here](https://nodejs.org/). The project is compatible with Node.js version 18.16.0.
+- npm (Node Package Manager) installed on your machine. npm usually comes bundled with Node.js installation. The project is compatible with npm version 9.5.1.
 
 ## Technologies Used
 - **Frontend**
